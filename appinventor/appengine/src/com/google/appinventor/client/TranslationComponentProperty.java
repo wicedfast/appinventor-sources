@@ -217,6 +217,9 @@ public class TranslationComponentProperty {
     map.put("UseGPS", MESSAGES.UseGPSProperties());
     map.put("Hour", MESSAGES.HourProperties());
     map.put("Minute", MESSAGES.MinuteProperties());
+    map.put("Scanning", MESSAGES.ScanningProperties());
+    map.put("IsEnabled", MESSAGES.IsEnabledProperties());
+    map.put("RSSI", MESSAGES.RSSIProperties());
 
     return map;
   }

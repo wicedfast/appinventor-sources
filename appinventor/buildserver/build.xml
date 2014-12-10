@@ -5,6 +5,9 @@
      Author: markf@google.com (Mark Friedman)
 
      App Inventor build server
+
+     Updates:
+        Dec 10, 2014 : David Garrett - Migrated to Android 4.3.1
      ====================================================================== -->
 
 <project name="buildserver" default="all">
@@ -79,7 +82,9 @@
     <copy toFile="${classes.files.dir}/json.jar" file="${lib.dir}/json/json.jar" />
     <copy toFile="${classes.files.dir}/google-oauth-client-beta.jar" file="${lib.dir}/oauth/google-oauth-client-1.10.1-beta.jar" />
     <copy toFile="${classes.files.dir}/guava-14.0.1.jar" file="${lib.dir}/guava/guava-14.0.1.jar" />
-    <copy toFile="${classes.files.dir}/android.jar" file="${lib.dir}/android/4.2.2/android.jar" />
+<!--    <copy toFile="${classes.files.dir}/android.jar" file="${lib.dir}/android/4.2.2/android.jar" /> 
+    <copy toFile="${classes.files.dir}/dx.jar" file="${lib.dir}/android/tools/dx.jar" /> -->
+    <copy toFile="${classes.files.dir}/android.jar" file="${lib.dir}/android/4.3.1/android.jar" /> 
     <copy toFile="${classes.files.dir}/dx.jar" file="${lib.dir}/android/tools/dx.jar" />
     <copy toFile="${classes.files.dir}/CommonVersion.jar" file="${build.dir}/common/CommonVersion.jar" />
 

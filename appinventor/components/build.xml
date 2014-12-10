@@ -4,6 +4,9 @@
      Copyright 2011 Google Inc.  All Rights Reserved.
 
      App Inventor component libraries
+
+     Updates:
+        Dec 10, 2014 : David Garrett - Migrated to Android 4.3.1
      ====================================================================== -->
 
 <project name="components" default="all">
@@ -117,7 +120,8 @@
         <pathelement location="${local.build.dir}/HtmlEntities.jar" />
         <pathelement location="${public.build.dir}/CommonConstants.jar" />
         <pathelement location="${build.dir}/common/CommonVersion.jar" />
-        <pathelement location="${lib.dir}/android/4.2.2/android.jar" />
+        <!-- <pathelement location="${lib.dir}/android/4.2.2/android.jar" /> -->
+        <pathelement location="${lib.dir}/android/4.3.1/android.jar" />
         <pathelement location="${lib.dir}/kawa/kawa-1.11-modified.jar" />
         <pathelement location="${lib.dir}/acra/acra-4.4.0.jar" />
         <pathelement location="${lib.dir}/guava/guava-14.0.1.jar" />
@@ -163,7 +167,8 @@
     <pathelement location="${lib.dir}/powermock/powermock-easymock-1.4.10-full.jar" />
     <!-- android.jar must go last on the classpath list
          so that its junit (or other) stubs don't override the real ones -->
-    <pathelement location="${lib.dir}/android/4.2.2/android.jar" />
+    <!-- <pathelement location="${lib.dir}/android/4.2.2/android.jar" /> -->
+    <pathelement location="${lib.dir}/android/4.3.1/android.jar" />
   </path>
 
   <path id="AndroidRuntimeTests.path">
@@ -217,7 +222,8 @@
           <pathelement location="${public.build.dir}/AndroidRuntime.jar" />
           <pathelement location="${local.build.dir}/HtmlEntities.jar" />
           <pathelement location="${public.build.dir}/CommonConstants.jar" />
-          <pathelement location="${lib.dir}/android/4.2.2/android.jar" />
+          <!-- <pathelement location="${lib.dir}/android/4.2.2/android.jar" /> -->
+          <pathelement location="${lib.dir}/android/4.3.1/android.jar" />
           <pathelement location="${lib.dir}/guava/guava-14.0.1.jar" />
           <pathelement location="${lib.dir}/gson/gson-2.1.jar" />
           <pathelement location="${lib.dir}/json/json.jar" />

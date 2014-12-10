@@ -4727,7 +4727,7 @@ public interface OdeMessages extends Messages {
 
   @DefaultMessage("Tweet")
   @Description("")
-  String TweetMethods();
+  String TweetMethods(); 
 
   @DefaultMessage("TweetWithImage")
   @Description("")
@@ -4753,6 +4753,26 @@ public interface OdeMessages extends Messages {
   @Description("")
   String RequestTranslationMethods();
   
+  // Components for WICEDSense
+  @DefaultMessage("Scanning")
+  @Description("")
+  String ScanningProperties();
+
+  @DefaultMessage("IsEnabled")
+  @Description("")
+  String IsEnabledProperties();
+
+  @DefaultMessage("RSSI")
+  @Description("")
+  String RSSIProperties();
+  // Components for WICEDSense
+//  @DefaultMessage("Scanning")
+//  @Description("Scanning")
+//  String ScanningMethods();
+
+//  @DefaultMessage("IsEnabled")
+//  @Description("IsEnabled")
+//  String IsEnabledMethods();
   
   //Mock Components
   @DefaultMessage("add items...")
