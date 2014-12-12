@@ -66,10 +66,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private BluetoothAdapter bluetoothAdapter;
 
   // holds error message
-  private String errorMessage = "";
+  private String errorMessage = "Initial State";
 
   // holds the BT device
-//  private boolean foundDevice = false;
   private int deviceRssi = -130;
   private BluetoothDevice mDevice;
   
@@ -140,11 +139,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         numDevices++;
       }
       
-//      if (!foundDevice) { 
-//        foundDevice = true;
-//        deviceRssi = rssi;
-//        mDevice = device;
-//      }
        // runOnUiThread(new Runnable() {
        //    @Override
        //    public void run() {
@@ -298,7 +292,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    *  but calls a Gatt callback that will update with the new 
    *  values on the callback (later in time)
    *
-   *  Shoudl consider callback "EVENT" to get accurate value
+   *  Should consider callback "EVENT" to get accurate value
    */
   @SimpleProperty(description = "Queries RSSI", 
                   category = PropertyCategory.BEHAVIOR,
@@ -348,23 +342,26 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String testname;
     boolean foundDevice = false;
 
+    // Search through strings and find matching one
     for (int loop1 = 0; loop1 < numDevices; loop1++) {
       // recover next device in list
       tempDevice = mLeDevices.get(loop1); 
       testname = tempDevice.getName() + ":" + tempDevice.toString();
   
       // check if this is the device
-      if (testname == name) { 
+      if (testname.equals(name)) { 
         mDevice = tempDevice;
         foundDevice = true;
       }
     }
 
+    // Fire off the callback
     if (foundDevice && (mConnectionState == STATE_DISCONNECTED)) { 
       mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
       errorMessage = "Connecting device " + mDevice.getName() + ":" + mDevice.toString();
       Log.i(LOG_TAG, "Connecting to device");
     } else { 
+      errorMessage = "Trying to connect to " + name;
       Log.e(LOG_TAG, "Trying to connected without a found device");
     }
   }
@@ -402,9 +399,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String deviceName;
     BluetoothDevice nextDevice;
 
-    //deviceName = "number of devices = ";    
-    //int numDevices;
-    //numDevices = leDeviceListAdapter.getCount();
     if (numDevices == 0) {
       listOfBTLEDevices.add("No devices found");
       Log.i(LOG_TAG, "Did not find any devices to connect");
@@ -412,49 +406,18 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       for (int loop1 = 0; loop1 < numDevices; loop1++) {
         nextDevice = mLeDevices.get(loop1);
         deviceName = nextDevice.getName(); 
-//        deviceName = mDevice.getName();
         listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
-        //listOfBTLEDevices.add("Device Count" + numDevices);
       }
       Log.i(LOG_TAG, "Returning name and addresses of devices");
     }
 
-    //// add the device
-    //if (foundDevice) {
-    //} else { 
-    //}
-
-    //listOfBTLEDevices.add("Dummy device");
-    //for (int loop1 = 0; loop1 < numDevices; loop1++) {
-    //}
-
-    // get names
-//    if (leDeviceListAdapter.getCount() == 0) { 
-//      listOfBTLEDevices.add("No BTLE devices found");
-//    } else { 
-//
-//        try { 
-//          BluetoothDevice mDevice = leDeviceListAdapter.getDevice(loop1);
-//          // get list of names
-//          deviceName = mDevice.getName();
-//          listOfBTLEDevices.add(deviceName);
-//        } catch (Exception e) { 
-//          Log.e(LOG_TAG, "Failed to Lookup mDevice device" + e.getMessage());
-//          listOfBTLEDevices.add("Bad call to device name");
-//        }
-//
-//      }
-//    }
-
     return listOfBTLEDevices;
   }
 
-
-  /**  URGENT -- missing all teh onResume() onPause() onStop() methods to cleanup
+  /**  URGENT -- missing all the onResume() onPause() onStop() methods to cleanup
    *   the connections during Life-cycle of app
    *
    *
    */
-
 
 }
