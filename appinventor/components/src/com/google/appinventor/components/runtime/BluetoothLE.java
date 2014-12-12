@@ -39,22 +39,22 @@ import java.util.List;
 import java.util.ArrayList;
 
 /**
- * The WICEDSense component connects to the BLTE device
+ * The BluetoothLE component connects to the BLTE device
  *
  * @author  David Garrett (not the violionist)
  */
-@DesignerComponent(version = YaVersion.WICEDSENSE_COMPONENT_VERSION,
+@DesignerComponent(version = YaVersion.BLUETOOTHLE_COMPONENT_VERSION,
     category = ComponentCategory.CONNECTIVITY,
-    description = "The WICEDSense component is still experimental",
+    description = "The BluetoothLE component is still experimental",
     nonVisible = true,
     iconName = "images/bluetooth.png")
 @SimpleObject
 @UsesPermissions(permissionNames = 
                  "android.permission.BLUETOOTH, " + 
                  "android.permission.BLUETOOTH_ADMIN")
-public final class WICEDSense extends AndroidNonvisibleComponent implements Component {
+public final class BluetoothLE extends AndroidNonvisibleComponent implements Component {
 
-  private static final String LOG_TAG = "WICEDSense";
+  private static final String LOG_TAG = "BluetoothLE";
   private final Activity activity;
 
   // if constructor finds enabled BTLE device, this is set
@@ -95,11 +95,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private static final int STATE_CONNECTED = 2;
 
   /**
-   * Creates a new WICEDSense component.
+   * Creates a new BluetoothLE component.
    *
    * @param container the enclosing component
    */
-  public WICEDSense (ComponentContainer container) {
+  public BluetoothLE (ComponentContainer container) {
     super(container.$form());
     activity = container.$context();
 
