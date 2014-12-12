@@ -1,26 +1,16 @@
 // -*- mode: java; c-basic-offset: 2; -*-
-// Copyright 2009-2011 Google, All Rights reserved
-// Copyright 2011-2012 MIT, All rights reserved
-// Released under the Apache License, Version 2.0
+//
+// Copyright 2014 - David Garrett
 // http://www.apache.org/licenses/LICENSE-2.0
+//
+//
 
 package com.google.appinventor.components.runtime;
 
 import android.app.Activity;
-//import android.app.AlertDialog;
 import android.content.Context;
-//import android.content.DialogInterface;
-//import android.graphics.Color;
-//import android.graphics.Typeface;
 import android.os.Handler;
-//import android.text.Html;
-//import android.text.SpannableString;
 import android.util.Log;
-//import android.view.Gravity;
-//import android.view.inputmethod.InputMethodManager;
-//import android.widget.EditText;
-//import android.widget.TextView;
-//import android.widget.Toast;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothAdapter.LeScanCallback;
 import android.bluetooth.BluetoothDevice;
@@ -52,10 +42,9 @@ import java.util.ArrayList;
  *
  * @author  David Garrett (not the violionist)
  */
-
-@DesignerComponent(version = YaVersion.NOTIFIER_COMPONENT_VERSION,
+@DesignerComponent(version = YaVersion.WICEDSENSE_COMPONENT_VERSION,
     category = ComponentCategory.CONNECTIVITY,
-    description = "The WICEDSense component is experimental",
+    description = "The WICEDSense component is still experimental",
     nonVisible = true,
     iconName = "images/bluetooth.png")
 @SimpleObject
@@ -67,34 +56,36 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private static final String LOG_TAG = "WICEDSense";
   private final Activity activity;
 
-
   // if constructor finds enabled BTLE device, this is set
   private boolean isEnabled = false;
   
   // Set to 1 during scanning
   private boolean scanning = true;
 
-
   // Holds the link to the Bluetooth Adapter
   private BluetoothAdapter bluetoothAdapter;
 
-  private String errorMessage;
-
-  // Holds list of devices
-//  private LeDeviceListAdapter leDeviceListAdapter;
+  // holds error message
+  private String errorMessage = "";
 
   // holds the BT device
-  private boolean foundDevice = false;
+//  private boolean foundDevice = false;
   private int deviceRssi = -130;
   private BluetoothDevice mDevice;
+  
+  // Holds list of devices
   private int numDevices = 0;
   private ArrayList<BluetoothDevice> mLeDevices;
+  // not sure why but leDeviceListAdapter was crashing -need to debug
+  // private LeDeviceListAdapter leDeviceListAdapter;
 
   // Gatt client pointer
   private BluetoothGatt mBluetoothGatt;
 
+  // holds current connection state
   private int mConnectionState = STATE_DISCONNECTED;
 
+  // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
   private static final int STATE_CONNECTING = 1;
   private static final int STATE_CONNECTED = 2;
@@ -203,11 +194,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
                 //intentAction = ACTION_GATT_CONNECTED;
                 mConnectionState = STATE_CONNECTED;
                 //broadcastUpdate(intentAction);
+                errorMessage = "Connected callback worked";
                 Log.i(LOG_TAG, "Connected to GATT server.");
                 //Log.i(LOG_TAG, "Attempting to start service discovery:" + mBluetoothGatt.discoverServices());
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 //intentAction = ACTION_GATT_DISCONNECTED;
                 mConnectionState = STATE_DISCONNECTED;
+                errorMessage = "Disconnected";
                 //mConnectionState = STATE_DISCONNECTED;
                 Log.i(LOG_TAG, "Disconnected from GATT server.");
                 //broadcastUpdate(intentAction);
@@ -254,8 +247,14 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   @SimpleFunction(description = "Starts BTLE scanning")
   public void startLeScan() { 
     String functionName = "startLeScan";
+    
+    // If not scanning, clear list rescan
     if (!scanning) { 
+      numDevices = 0;
+      mLeDevices.clear();
       scanning = true;
+
+      // Force the LE scan
       try { 
         bluetoothAdapter.startLeScan(mLeScanCallback);
       } catch (Exception e) { 
@@ -293,6 +292,14 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     }
   }
 
+  /** Returns the RSSI measurement from devices
+   *
+   *  Instantly returns the rssi on WICEDsene class variable
+   *  but calls a Gatt callback that will update with the new 
+   *  values on the callback (later in time)
+   *
+   *  Shoudl consider callback "EVENT" to get accurate value
+   */
   @SimpleProperty(description = "Queries RSSI", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
@@ -304,6 +311,17 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     return deviceRssi;
   }
 
+
+  /**
+   * Returns text log
+   */
+  @SimpleProperty(description = "Queries Text", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public String Text() {
+    Log.i(LOG_TAG, "Returning " + errorMessage);
+    return errorMessage;
+  }
 
   /**
    * Allows the user to disconnect
@@ -328,6 +346,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String functionName = "Connect";
     BluetoothDevice tempDevice;
     String testname;
+    boolean foundDevice = false;
 
     for (int loop1 = 0; loop1 < numDevices; loop1++) {
       // recover next device in list
@@ -343,6 +362,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
     if (foundDevice && (mConnectionState == STATE_DISCONNECTED)) { 
       mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+      errorMessage = "Connecting device " + mDevice.getName() + ":" + mDevice.toString();
       Log.i(LOG_TAG, "Connecting to device");
     } else { 
       Log.e(LOG_TAG, "Trying to connected without a found device");
@@ -350,11 +370,12 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /**
-   * Returns the scanning
+   * Returns the scanning status
    *
-   * @return scanning enables scanning
+   * @return scanning if still scanning
    */
-  @SimpleProperty(description = "Checks if BTLE device is scanning", category = PropertyCategory.BEHAVIOR,
+  @SimpleProperty(description = "Checks if BTLE device is scanning", 
+                  category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public boolean Scanning() {
     return scanning;
@@ -379,18 +400,29 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   public List<String> AddressesAndNames() { 
     List<String> listOfBTLEDevices = new ArrayList<String>();
     String deviceName;
+    BluetoothDevice nextDevice;
 
     //deviceName = "number of devices = ";    
     //int numDevices;
     //numDevices = leDeviceListAdapter.getCount();
-
-    // add the device
-    if (foundDevice) {
-      deviceName = mDevice.getName();
-      listOfBTLEDevices.add(deviceName + ":" + mDevice.toString());
+    if (numDevices == 0) {
+      listOfBTLEDevices.add("No devices found");
+      Log.i(LOG_TAG, "Did not find any devices to connect");
     } else { 
-      listOfBTLEDevices.add("Did not find a device");
+      for (int loop1 = 0; loop1 < numDevices; loop1++) {
+        nextDevice = mLeDevices.get(loop1);
+        deviceName = nextDevice.getName(); 
+//        deviceName = mDevice.getName();
+        listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
+        //listOfBTLEDevices.add("Device Count" + numDevices);
+      }
+      Log.i(LOG_TAG, "Returning name and addresses of devices");
     }
+
+    //// add the device
+    //if (foundDevice) {
+    //} else { 
+    //}
 
     //listOfBTLEDevices.add("Dummy device");
     //for (int loop1 = 0; loop1 < numDevices; loop1++) {
@@ -399,7 +431,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     // get names
 //    if (leDeviceListAdapter.getCount() == 0) { 
 //      listOfBTLEDevices.add("No BTLE devices found");
-//      Log.i(LOG_TAG, "Did not find any devices");
 //    } else { 
 //
 //        try { 
@@ -417,5 +448,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
     return listOfBTLEDevices;
   }
+
+
+  /**  URGENT -- missing all teh onResume() onPause() onStop() methods to cleanup
+   *   the connections during Life-cycle of app
+   *
+   *
+   */
+
 
 }
