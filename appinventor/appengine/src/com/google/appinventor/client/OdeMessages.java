@@ -4765,6 +4765,12 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("RSSI")
   @Description("")
   String RSSIProperties();
+
+  @DefaultMessage("DeviceServices")
+  @Description("")
+  String DeviceServicesProperties();
+
+
   // Components for WICEDSense
 //  @DefaultMessage("Scanning")
 //  @Description("Scanning")

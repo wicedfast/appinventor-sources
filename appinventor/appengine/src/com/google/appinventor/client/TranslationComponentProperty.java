@@ -220,6 +220,7 @@ public class TranslationComponentProperty {
     map.put("Scanning", MESSAGES.ScanningProperties());
     map.put("IsEnabled", MESSAGES.IsEnabledProperties());
     map.put("RSSI", MESSAGES.RSSIProperties());
+    map.put("DeviceServices", MESSAGES.DeviceServicesProperties());
 
     return map;
   }

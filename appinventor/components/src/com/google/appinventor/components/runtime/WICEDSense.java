@@ -16,6 +16,7 @@ import android.bluetooth.BluetoothAdapter.LeScanCallback;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothGattCallback;
 
@@ -81,6 +82,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   // Gatt client pointer
   private BluetoothGatt mBluetoothGatt;
 
+  // Service founds
+  private boolean servicesFound = false;
+  private List<BluetoothGattService> mGattServices;
+
   // holds current connection state
   private int mConnectionState = STATE_DISCONNECTED;
 
@@ -100,6 +105,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
     // setup new list of devices
     mLeDevices = new ArrayList<BluetoothDevice>();
+
+    // initialize GATT services
+    mGattServices = new ArrayList<BluetoothGattService>();
 
     /* Setup the Bluetooth adapter */
     bluetoothAdapter = (SdkLevel.getLevel() >= SdkLevel.LEVEL_JELLYBEAN_MR2)
@@ -190,6 +198,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
                 //broadcastUpdate(intentAction);
                 errorMessage = "Connected callback worked";
                 Log.i(LOG_TAG, "Connected to GATT server.");
+
+                //Trigger connected event
+                ConnectedEvent();
                 //Log.i(LOG_TAG, "Attempting to start service discovery:" + mBluetoothGatt.discoverServices());
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 //intentAction = ACTION_GATT_DISCONNECTED;
@@ -208,15 +219,20 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           Log.i(LOG_TAG, "Updating RSSI " + status);
         }
         
-//        @Override
-//        // New services discovered
-//        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-//            if (status == BluetoothGatt.GATT_SUCCESS) {
-//                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
-//            } else {
-//                Log.w(TAG, "onServicesDiscovered received: " + status);
-//            }
-//        }
+        @Override
+        // New services discovered
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+          if (status == BluetoothGatt.GATT_SUCCESS) {
+            // record services 
+            errorMessage = "Found new services";
+            mGattServices = gatt.getServices();
+            ServicesFoundEvent();
+            //broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
+          } else {
+            Log.w(LOG_TAG, "onServicesDiscovered received: " + status);
+            errorMessage = "Found new services, but status = " + status;
+          }
+        }
 //
 //        @Override
 //        // Result of a characteristic read operation
@@ -234,6 +250,22 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    *  GUI Interface Code Section
    *  ----------------------------------------------------------------------
    */
+ 
+  /**
+   * Callback events for device connection
+   */
+  @SimpleEvent
+  public void ConnectedEvent() { 
+    EventDispatcher.dispatchEvent(this, "ConnectedEvent");
+  }
+
+  /**
+   * Callback events for device connection
+   */
+  @SimpleEvent
+  public void ServicesFoundEvent() { 
+    EventDispatcher.dispatchEvent(this, "ServiceFoundEvent");
+  }
 
   /**
    * Allows the user to start the scan
@@ -333,7 +365,22 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /**
-   * Allows the user to Stop the scan
+   * Sets up device discovery
+   */
+  @SimpleFunction(description = "Initiates a service discovery")
+  public void DiscoverServices() { 
+    String functionName = "DiscoverServices";
+
+    // on the connection, runs services
+    if (mConnectionState == STATE_CONNECTED) { 
+      mBluetoothGatt.discoverServices();
+      errorMessage = "Discover Services";
+      Log.i(LOG_TAG, "Starting Discover services flag");
+    }
+  }
+
+  /**
+   * Allows the Connect to Device
    */
   @SimpleFunction(description = "Starts GATT connection")
   public void Connect(String name) { 
@@ -391,6 +438,34 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /**
+   * Returns a list of the Gatt services
+   */
+  @SimpleProperty(description = "Lists the BLTE GATT Services", category = PropertyCategory.BEHAVIOR)
+  public List<String> DeviceServices() { 
+    List<String> listOfServices = new ArrayList<String>();
+    int numServices;
+    BluetoothGattService mService;
+
+    // number of services discovered
+    numServices = mGattServices.size();
+
+    // bail out if nothing found
+    if (numServices == 0) { 
+      listOfServices.add("No Services Found");
+      Log.i(LOG_TAG, "Did not find any services");
+    } else { 
+      for (int loop1 = 0; loop1 < numServices; loop1++) {
+        mService = mGattServices.get(loop1);
+        if (mService != null) { 
+          listOfServices.add("service = " + mService.getUuid().toString());
+        }
+      }
+    }
+  
+    return listOfServices;
+  }
+
+  /**
    * Allows to access a list of Devices found in the Scan
    */
   @SimpleProperty(description = "Lists the BLTE devices", category = PropertyCategory.BEHAVIOR)
@@ -405,8 +480,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     } else { 
       for (int loop1 = 0; loop1 < numDevices; loop1++) {
         nextDevice = mLeDevices.get(loop1);
-        deviceName = nextDevice.getName(); 
-        listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
+        if (nextDevice != null) { 
+          deviceName = nextDevice.getName(); 
+          listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
+        }
       }
       Log.i(LOG_TAG, "Returning name and addresses of devices");
     }
