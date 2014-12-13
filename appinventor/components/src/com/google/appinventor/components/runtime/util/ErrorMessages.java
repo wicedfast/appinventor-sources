@@ -81,6 +81,8 @@ public final class ErrorMessages {
   public static final int ERROR_BLUETOOTH_UNABLE_TO_READ = 517;
   public static final int ERROR_BLUETOOTH_END_OF_STREAM = 518;
   public static final int ERROR_BLUETOOTH_UNSUPPORTED_ENCODING = 519;
+  // Bluetooth LE Errors
+  public static final int ERROR_BLUETOOTH_LE_NOT_SUPPORTED = 530;
   // ActivityStarter errors
   public static final int ERROR_ACTIVITY_STARTER_NO_CORRESPONDING_ACTIVITY = 601;
   // Media errors
@@ -310,6 +312,9 @@ public final class ErrorMessages {
         "End of stream has been reached.");
     errorMessages.put(ERROR_BLUETOOTH_UNSUPPORTED_ENCODING,
         "The encoding %s is not supported.");
+    // Bluetooth LE Errors
+    errorMessages.put(ERROR_BLUETOOTH_LE_NOT_SUPPORTED,
+        "Bluetooth LE components require Bluetooth 4.0 on device and Android 4.3.1 or greater.");
     // ActivityStarter errors
     errorMessages.put(ERROR_ACTIVITY_STARTER_NO_CORRESPONDING_ACTIVITY,
         "No corresponding activity was found.");

@@ -33,6 +33,7 @@ import com.google.appinventor.components.common.ComponentCategory;
 import com.google.appinventor.components.common.PropertyTypeConstants;
 import com.google.appinventor.components.common.YaVersion;
 import com.google.appinventor.components.runtime.util.SdkLevel;
+import com.google.appinventor.components.runtime.util.ErrorMessages;
 
 
 import java.util.List;
@@ -103,6 +104,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     super(container.$form());
     activity = container.$context();
 
+    // names the function
+    String functionName = "WICEDSense";
+
     // setup new list of devices
     mLeDevices = new ArrayList<BluetoothDevice>();
 
@@ -110,12 +114,23 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     mGattServices = new ArrayList<BluetoothGattService>();
 
     /* Setup the Bluetooth adapter */
-    bluetoothAdapter = (SdkLevel.getLevel() >= SdkLevel.LEVEL_JELLYBEAN_MR2)
-        ? newBluetoothAdapter(activity)
-        : null;
+    if (SdkLevel.getLevel() < SdkLevel.LEVEL_JELLYBEAN_MR2) { 
+      bluetoothAdapter = null;
+      /** issues message to reader */
+      form.dispatchErrorOccurredEvent(this, functionName,
+          ErrorMessages.ERROR_BLUETOOTH_LE_NOT_SUPPORTED);
+    } else { 
+      bluetoothAdapter = newBluetoothAdapter(activity);
+    }
+
     if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) { 
       isEnabled = false;
       Log.e(LOG_TAG, "No valid BTLE Device");
+
+      /** issues message to reader */
+      form.dispatchErrorOccurredEvent(this, "WICEDSense",
+          ErrorMessages.ERROR_BLUETOOTH_NOT_ENABLED);
+
     } else { 
       Log.i(LOG_TAG, "Found valid BTLE Device");
       isEnabled = true;
