@@ -221,6 +221,7 @@ public class TranslationComponentProperty {
     map.put("IsEnabled", MESSAGES.IsEnabledProperties());
     map.put("RSSI", MESSAGES.RSSIProperties());
     map.put("DeviceServices", MESSAGES.DeviceServicesProperties());
+    map.put("BatteryLevel", MESSAGES.BatteryLevelProperties());
 
     return map;
   }

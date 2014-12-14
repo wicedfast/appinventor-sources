@@ -19,6 +19,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
 
 
 import com.google.appinventor.components.annotations.DesignerComponent;
@@ -38,6 +39,7 @@ import com.google.appinventor.components.runtime.util.ErrorMessages;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.UUID;
 
 /**
  * The WICEDSense component connects to the BLTE device
@@ -84,16 +86,38 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private BluetoothGatt mBluetoothGatt;
 
   // Service founds
-  private boolean servicesFound = false;
   private List<BluetoothGattService> mGattServices;
 
   // holds current connection state
   private int mConnectionState = STATE_DISCONNECTED;
 
+  // Holds specific WICED services
+  private BluetoothGattService mSensorService = null;
+
+  private BluetoothGattService mBatteryService = null;
+  private BluetoothGattCharacteristic mBatteryLevel = null;
+
+  // Holds Battery level
+  private int batteryLevel = -1;
+  
   // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
   private static final int STATE_CONNECTING = 1;
   private static final int STATE_CONNECTED = 2;
+
+
+  /** Descriptor used to enable/disable notifications/indications */
+  private static final UUID CLIENT_CONFIG_UUID = UUID
+          .fromString("00002902-0000-1000-8000-00805f9b34fb");
+  private static final UUID SENSOR_SERVICE_UUID = UUID
+          .fromString("739298B6-87B6-4984-A5DC-BDC18B068985");
+  private static final UUID SENSOR_NOTIFICATION_UUID = UUID
+          .fromString("33EF9113-3B55-413E-B553-FEA1EAADA459");
+  private static final UUID BATTERY_SERVICE_UUID = UUID
+          .fromString("0000180F-0000-1000-8000-00805f9b34fb");
+  private static final UUID BATTERY_LEVEL_UUID = UUID
+          .fromString("00002a19-0000-1000-8000-00805f9b34fb");
+
 
   /**
    * Creates a new WICEDSense component.
@@ -241,24 +265,59 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             // record services 
             errorMessage = "Found new services";
             mGattServices = gatt.getServices();
+
+            // trigger the callback
+
+            // Match to sensor services
+            BluetoothGattService mService;
+            for (int loop1 = 0; loop1 < mGattServices.size(); loop1++) {
+              mService = mGattServices.get(loop1);
+              // get battery service
+              if (BATTERY_SERVICE_UUID.equals(mService.getUuid())) { 
+                errorMessage = "Found BATTERY SERVICE";
+                mBatteryService = mService;
+                mBatteryLevel = mBatteryService.getCharacteristic(BATTERY_LEVEL_UUID);
+              } 
+              // get the sensor service
+              if (SENSOR_SERVICE_UUID.equals(mService.getUuid())) { 
+                mSensorService = mService;
+              } 
+            }
+            Log.i(LOG_TAG, "Found the services on BTLE device");
+
+            // Triggers callback
             ServicesFoundEvent();
-            //broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
           } else {
             Log.w(LOG_TAG, "onServicesDiscovered received: " + status);
             errorMessage = "Found new services, but status = " + status;
           }
         }
-//
-//        @Override
-//        // Result of a characteristic read operation
-//        public void onCharacteristicRead(BluetoothGatt gatt,
-//                BluetoothGattCharacteristic characteristic,
-//                int status) {
-//            if (status == BluetoothGatt.GATT_SUCCESS) {
-//                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
-//            }
-//        }
-    };
+
+        @Override
+        // Result of a characteristic read operation
+        public void onCharacteristicRead(BluetoothGatt gatt, 
+                                         BluetoothGattCharacteristic characteristic, 
+                                         int status) {
+          if (status == BluetoothGatt.GATT_SUCCESS) {
+            errorMessage = "Success read characterstics";
+
+            // Check for battery level
+            if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
+              try {
+                batteryLevel = characteristic.getIntValue(
+                               BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                // trigger event
+                BatteryLevelEvent();
+              } catch (Throwable t) {
+                Log.e(LOG_TAG, "Unable to read battery level", t);
+                return;
+              }
+            }
+          } else {
+            errorMessage = "Failing in reading Gatt Characteristics";
+          }
+        }
+   };
 
 
   /** ----------------------------------------------------------------------
@@ -269,17 +328,46 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback events for device connection
    */
-  @SimpleEvent
+  @SimpleEvent(description = "BTLE Connected Event.")
   public void ConnectedEvent() { 
+    errorMessage = "Found Connected Event";
     EventDispatcher.dispatchEvent(this, "ConnectedEvent");
   }
 
   /**
    * Callback events for device connection
    */
-  @SimpleEvent
+  @SimpleEvent(description = "Discovered Services Event.")
   public void ServicesFoundEvent() { 
-    EventDispatcher.dispatchEvent(this, "ServiceFoundEvent");
+    errorMessage = "Service Found Connected Event";
+    EventDispatcher.dispatchEvent(this, "ServicesFoundEvent");
+  }
+
+  /**
+   * Callback events for batery levels
+   */
+  @SimpleEvent(description = "Received Battery Level.")
+  public void BatteryLevelEvent() { 
+    errorMessage = "Battery level event = " + batteryLevel;
+    EventDispatcher.dispatchEvent(this, "BatteryLevelEvent");
+  }
+
+  /**
+   * Allows the user to check battery level
+   */
+  @SimpleFunction(description = "Starts BTLE scanning")
+  public void ReadBatteryLevel() { 
+    String functionName = "ReadBatteryLevel";
+    if (mConnectionState == STATE_CONNECTED) { 
+      if (mBatteryService != null) { 
+        mBluetoothGatt.readCharacteristic(mBatteryLevel);
+        errorMessage = "Read battery characteristic";
+      } else { 
+        errorMessage = "Trying to read battery characteristic before discovery";
+      }
+    } else { 
+      errorMessage = "Read battery, but not connection";
+    }
   }
 
   /**
@@ -319,6 +407,14 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         Log.e(LOG_TAG, "Failed to stop scanning " + e.getMessage());
       }
     }
+  }
+
+  /** Gets Battery Level */
+  @SimpleProperty(description = "Queries Connected state", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public int BatteryLevel() {
+    return batteryLevel;
   }
 
   /** Makes sure GATT profile is connected */
@@ -388,9 +484,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
     // on the connection, runs services
     if (mConnectionState == STATE_CONNECTED) { 
-      mBluetoothGatt.discoverServices();
-      errorMessage = "Discover Services";
+      boolean discoverStatus = mBluetoothGatt.discoverServices();
+      errorMessage = "Discover Services, status: " + discoverStatus;
       Log.i(LOG_TAG, "Starting Discover services flag");
+    } else { 
+      errorMessage = "Trying to discover services, but device is not connected";
+      Log.w(LOG_TAG, errorMessage);
+
     }
   }
 
@@ -469,10 +569,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       listOfServices.add("No Services Found");
       Log.i(LOG_TAG, "Did not find any services");
     } else { 
+      errorMessage = "Adding " + numServices + " service to list";
       for (int loop1 = 0; loop1 < numServices; loop1++) {
         mService = mGattServices.get(loop1);
         if (mService != null) { 
           listOfServices.add("service = " + mService.getUuid().toString());
+        } else { 
+          listOfServices.add("Null service");
         }
       }
     }

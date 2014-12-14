@@ -4770,15 +4770,9 @@ public interface OdeMessages extends Messages {
   @Description("")
   String DeviceServicesProperties();
 
-
-  // Components for WICEDSense
-//  @DefaultMessage("Scanning")
-//  @Description("Scanning")
-//  String ScanningMethods();
-
-//  @DefaultMessage("IsEnabled")
-//  @Description("IsEnabled")
-//  String IsEnabledMethods();
+  @DefaultMessage("BatteryLevel")
+  @Description("")
+  String BatteryLevelProperties();
   
   //Mock Components
   @DefaultMessage("add items...")
