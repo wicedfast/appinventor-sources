@@ -81,7 +81,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private ArrayList<BluetoothDevice> mLeDevices;
   // not sure why but leDeviceListAdapter was crashing -need to debug
   // private LeDeviceListAdapter leDeviceListAdapter;
-
+  
+  // holds sensors data
+  private boolean mSensorsEnabled = false;
+  
   // Gatt client pointer
   private BluetoothGatt mBluetoothGatt;
 
@@ -93,6 +96,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
   // Holds specific WICED services
   private BluetoothGattService mSensorService = null;
+  private BluetoothGattCharacteristic mSensorNotification = null;
 
   private BluetoothGattService mBatteryService = null;
   private BluetoothGattCharacteristic mBatteryLevel = null;
@@ -185,46 +189,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         mLeDevices.add(device);
         numDevices++;
       }
-      
-       // runOnUiThread(new Runnable() {
-       //    @Override
-       //    public void run() {
-       //       leDeviceListAdapter.addDevice(device);
-       //       // mLeDeviceListAdapter.notifyDataSetChanged();
-       //     }
-       //  });
     }
   };
-
-
-
-//  /** Holds the callback list of devices */
-//  private class LeDeviceListAdapter  {
-//    private ArrayList<BluetoothDevice> mLeDevices;
-//
-//    public LeDeviceListAdapter() {
-//      super();
-//      mLeDevices = new ArrayList<BluetoothDevice>();
-//    }
-//    public void addDevice(BluetoothDevice device) {
-//      if(!mLeDevices.contains(device)) {
-//        Log.i(LOG_TAG, "Adding new BTLE device");
-//        mLeDevices.add(device);
-//      }
-//    }
-//    public BluetoothDevice getDevice(int position) {
-//      return mLeDevices.get(position);
-//    }
-//    public void clear() {
-//      mLeDevices.clear();
-//    }
-//    public int getCount() {
-//      return mLeDevices.size();
-//    }
-//    public Object getItem(int i) {
-//      return mLeDevices.get(i);
-//    }
-//  }
 
   /** Various callback methods defined by the BLE API. */
   private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
@@ -232,22 +198,16 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             //String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                //intentAction = ACTION_GATT_CONNECTED;
                 mConnectionState = STATE_CONNECTED;
-                //broadcastUpdate(intentAction);
                 errorMessage = "Connected callback worked";
                 Log.i(LOG_TAG, "Connected to GATT server.");
 
                 //Trigger connected event
                 ConnectedEvent();
-                //Log.i(LOG_TAG, "Attempting to start service discovery:" + mBluetoothGatt.discoverServices());
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                //intentAction = ACTION_GATT_DISCONNECTED;
                 mConnectionState = STATE_DISCONNECTED;
                 errorMessage = "Disconnected";
-                //mConnectionState = STATE_DISCONNECTED;
                 Log.i(LOG_TAG, "Disconnected from GATT server.");
-                //broadcastUpdate(intentAction);
             }
         }
 
@@ -266,8 +226,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             errorMessage = "Found new services";
             mGattServices = gatt.getServices();
 
-            // trigger the callback
-
             // Match to sensor services
             BluetoothGattService mService;
             for (int loop1 = 0; loop1 < mGattServices.size(); loop1++) {
@@ -281,9 +239,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
               // get the sensor service
               if (SENSOR_SERVICE_UUID.equals(mService.getUuid())) { 
                 mSensorService = mService;
+                mSensorNotification = mSensorService.getCharacteristic(SENSOR_NOTIFICATION_UUID);
               } 
             }
             Log.i(LOG_TAG, "Found the services on BTLE device");
+
+            // turn on notifications if needed
+            SensorsEnabled(mSensorsEnabled);
 
             // Triggers callback
             ServicesFoundEvent();
@@ -317,6 +279,23 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             errorMessage = "Failing in reading Gatt Characteristics";
           }
         }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt,
+                         BluetoothGattCharacteristic characteristic) {
+          if (SENSOR_NOTIFICATION_UUID.equals(characteristic.getUuid())) {
+            byte[] value = characteristic.getValue();
+            errorMessage = "Reading back Sensor data: " + value[0] + " with length";
+            
+           // if (mEventCallback != null) {
+           //     mEventCallback.onSensorData(this, value);
+           // }
+
+            // Set notification     
+            SensorsEvent();
+          }
+        }
+
    };
 
 
@@ -332,6 +311,15 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   public void ConnectedEvent() { 
     errorMessage = "Found Connected Event";
     EventDispatcher.dispatchEvent(this, "ConnectedEvent");
+  }
+
+  /**
+   * Callback events for Sensor Update
+   */
+  @SimpleEvent(description = "Sensor data updated.")
+  public void SensorsEvent() { 
+    errorMessage = "Sensors updated";
+    EventDispatcher.dispatchEvent(this, "SensorsEvent");
   }
 
   /**
@@ -525,6 +513,46 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     } else { 
       errorMessage = "Trying to connect to " + name;
       Log.e(LOG_TAG, "Trying to connected without a found device");
+    }
+  }
+
+  /**
+   * Returns if Sensors are enabled
+   *
+   */
+  @SimpleProperty(description = "Checks if Sensors are enabled", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public boolean SensorsEnabled() {
+    return mSensorsEnabled;
+  }
+
+  /**
+   * Turns on sensors
+   *
+   */
+  @SimpleProperty(description = "Checks if Sensors are enabled", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public void SensorsEnabled(boolean enableFlag) {
+
+    // turn on sensors
+    if (enableFlag && !mSensorsEnabled) { 
+      mSensorsEnabled = true;
+    } else if (!enableFlag && mSensorsEnabled) {
+      mSensorsEnabled = false;
+    }
+
+    // Fire off characteristic 
+    if (mConnectionState == STATE_CONNECTED) { 
+      if (mSensorNotification != null) { 
+        mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+        if (mSensorsEnabled) { 
+          errorMessage = "Turning on Sensor notifications";
+        } else { 
+          errorMessage = "Turning off Sensor notifications";
+        }
+      }
     }
   }
 

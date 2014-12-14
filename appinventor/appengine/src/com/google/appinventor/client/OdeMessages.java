@@ -4773,6 +4773,10 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("BatteryLevel")
   @Description("")
   String BatteryLevelProperties();
+
+  @DefaultMessage("SensorsEnabled")
+  @Description("")
+  String SensorsEnabledProperties();
   
   //Mock Components
   @DefaultMessage("add items...")
