@@ -83,6 +83,8 @@ public final class ErrorMessages {
   public static final int ERROR_BLUETOOTH_UNSUPPORTED_ENCODING = 519;
   // Bluetooth LE Errors
   public static final int ERROR_BLUETOOTH_LE_NOT_SUPPORTED = 530;
+  // WICED Sense Errors
+  public static final int ERROR_NON_WICED_SENSE_DEVICE = 540;
   // ActivityStarter errors
   public static final int ERROR_ACTIVITY_STARTER_NO_CORRESPONDING_ACTIVITY = 601;
   // Media errors
@@ -315,6 +317,8 @@ public final class ErrorMessages {
     // Bluetooth LE Errors
     errorMessages.put(ERROR_BLUETOOTH_LE_NOT_SUPPORTED,
         "Bluetooth LE components require Bluetooth 4.0 on device and Android 4.3.1 or greater.");
+    errorMessages.put(ERROR_NON_WICED_SENSE_DEVICE,
+        "The connected device is not a WICED Sense kit.");
     // ActivityStarter errors
     errorMessages.put(ERROR_ACTIVITY_STARTER_NO_CORRESPONDING_ACTIVITY,
         "No corresponding activity was found.");
