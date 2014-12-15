@@ -63,8 +63,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   // if constructor finds enabled BTLE device, this is set
   private boolean isEnabled = false;
   
-  // Set to 1 during scanning
-  private boolean scanning = true;
+  // Start with no scan
+  private boolean scanning = false;
 
   // Holds the link to the Bluetooth Adapter
   private BluetoothAdapter bluetoothAdapter;
@@ -189,7 +189,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       }
   
       // trigger event
-      LogMessageEvent();
+     // LogMessageEvent();
     }
   }
 
