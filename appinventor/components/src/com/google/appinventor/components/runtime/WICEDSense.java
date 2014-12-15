@@ -189,7 +189,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       }
   
       // trigger event
-     // LogMessageEvent();
+      Info();
     }
   }
 
@@ -218,7 +218,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
         // Trigger device event
         LogMessage("Found a new BTLE device in scan", "i");
-        FoundDeviceEvent();
+        FoundDevice();
       }
     }
   };
@@ -247,8 +247,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             // Trigger device discovery 
             mBluetoothGatt.discoverServices();
 
-            //Trigger connected event
-            //ConnectedEvent();
           } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
              mConnectionState = STATE_DISCONNECTED;
 
@@ -270,7 +268,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           LogMessage("Updating RSSI from remove device = " + rssi + " dBm", "i");
 
           // update RSSI
-          ReadRSSIEvent();
+          RSSIUpdated();
         }
         
         @Override
@@ -321,7 +319,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             }
 
             // Triggers callback for connected device
-            ConnectedEvent();
+            Connected();
           } else {
             LogMessage("onServicesDiscovered received but failed", "e");
           }
@@ -340,7 +338,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
                 LogMessage("Read battery level " + batteryLevel + "%", "i");
 
                 // trigger event
-                BatteryLevelEvent();
+                BatteryLevelUpdated();
               } catch (Throwable t) {
                 LogMessage("Unable to read battery level.", "e");
                 return;
@@ -359,7 +357,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             mXAccel = bytesToHex(value);
             LogMessage("Reading back sensor data", "i");
             // Set notification     
-            SensorsEvent();
+            SensorsUpdated();
           }
         }
    };
@@ -380,57 +378,49 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback for LogMessages
    */
-  @SimpleEvent(description = "Event when Log message is updated.")
-  public void LogMessageEvent() { 
-    EventDispatcher.dispatchEvent(this, "LogMessageEvent");
+  @SimpleEvent(description = "Event the log message is updated.")
+  public void Info() { 
+    EventDispatcher.dispatchEvent(this, "Info");
   }
 
   /**
    * Callback for Found Device Event
    */
-  @SimpleEvent(description = "Event when an LE Device is found.")
-  public void FoundDeviceEvent() { 
-    EventDispatcher.dispatchEvent(this, "FoundDeviceEvent");
+  @SimpleEvent(description = "Event when an LE Device is found in scan.")
+  public void FoundDevice() { 
+    EventDispatcher.dispatchEvent(this, "FoundDevice");
   }
 
   /**
    * Callback for RSSI data
    */
   @SimpleEvent(description = "RSSI Read Event.")
-  public void ReadRSSIEvent() { 
-    EventDispatcher.dispatchEvent(this, "ReadRSSIEvent");
+  public void RSSIUpdated() { 
+    EventDispatcher.dispatchEvent(this, "RSSIUpdated");
   }
  
   /**
    * Callback events for device connection
    */
-  @SimpleEvent(description = "BTLE Connected Event.")
-  public void ConnectedEvent() { 
-    EventDispatcher.dispatchEvent(this, "ConnectedEvent");
+  @SimpleEvent(description = "BTLE Connection Event.")
+  public void Connected() { 
+    EventDispatcher.dispatchEvent(this, "Connected");
   }
 
   /**
    * Callback events for Sensor Update
    */
   @SimpleEvent(description = "Sensor data updated.")
-  public void SensorsEvent() { 
-    EventDispatcher.dispatchEvent(this, "SensorsEvent");
+  public void SensorsUpdated() { 
+    EventDispatcher.dispatchEvent(this, "SensorsUpdated");
   }
-
-//  /**
-//   * Callback events for device connection
-//   */
-//  @SimpleEvent(description = "Discovered Services Event.")
-//  public void ServicesFoundEvent() { 
-//    EventDispatcher.dispatchEvent(this, "ServicesFoundEvent");
-//  }
 
   /**
    * Callback events for batery levels
    */
   @SimpleEvent(description = "Received Battery Level.")
-  public void BatteryLevelEvent() { 
-    EventDispatcher.dispatchEvent(this, "BatteryLevelEvent");
+  public void BatteryLevelUpdated() { 
+    EventDispatcher.dispatchEvent(this, "BatteryLevelUpdated");
   }
 
   /**  ----------------------------------------------------------------------

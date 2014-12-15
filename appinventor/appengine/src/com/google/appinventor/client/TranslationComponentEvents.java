@@ -134,6 +134,11 @@ public class TranslationComponentEvents {
     map.put("AfterTimeSet", MESSAGES.AfterTimeSetEvents());
     map.put("GotTranslation", MESSAGES.GotTranslationEvents());
     map.put("Shaking", MESSAGES.ShakingEvents());
+    map.put("FoundDevice", MESSAGES.FoundDeviceEvents());
+    map.put("Connected", MESSAGES.ConnectedEvents());
+    map.put("SensorsUpdated", MESSAGES.SensorsUpdatedEvents());
+    map.put("RSSIUpdated", MESSAGES.RSSIUpdatedEvents());
+    map.put("BatteryLevelUpdated", MESSAGES.BatteryLevelUpdatedEvents());
 
 	/*
   //event helpstrings

@@ -3940,6 +3940,27 @@ public interface OdeMessages extends Messages {
   @Description("")
   String ShakingEvents();
 
+  // WICED Sense functions
+  @DefaultMessage("FoundDevice")
+  @Description("")
+  String FoundDeviceEvents();
+
+  @DefaultMessage("Connected")
+  @Description("")
+  String ConnectedEvents();
+
+  @DefaultMessage("SensorsUpdated")
+  @Description("")
+  String SensorsUpdatedEvents();
+
+  @DefaultMessage("RSSIUpdated")
+  @Description("")
+  String RSSIUpdatedEvents();
+
+  @DefaultMessage("BatteryLevelUpdated")
+  @Description("")
+  String BatteryLevelUpdatedEvents();
+
   //Methods
   @DefaultMessage("ResolveActivity")
   @Description("")
