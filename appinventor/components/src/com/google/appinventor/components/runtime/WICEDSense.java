@@ -35,6 +35,7 @@ import com.google.appinventor.components.common.PropertyTypeConstants;
 import com.google.appinventor.components.common.YaVersion;
 import com.google.appinventor.components.runtime.util.SdkLevel;
 import com.google.appinventor.components.runtime.util.ErrorMessages;
+import com.google.appinventor.components.runtime.EventDispatcher;
 
 
 import java.util.List;
@@ -165,11 +166,20 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           ErrorMessages.ERROR_BLUETOOTH_NOT_ENABLED);
 
     } else { 
-//      Log.i(LOG_TAG, "Found valid BTLE Device");
       isEnabled = true;
       LogMessage("Found the BTLE Device on platform", "i");
     }
 
+  }
+  /** Get Device name */
+  private String GetDeviceNameAndAddress(BluetoothDevice nextDevice) { 
+    String mName;
+    if (nextDevice != null) { 
+      mName = nextDevice.getName() + ":" + nextDevice.toString();
+    } else { 
+      mName = "Null device"; 
+    }
+    return mName;
   }
 
   /** Log Messages */
@@ -216,9 +226,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         mLeDevices.add(device);
         numDevices++;
 
+        LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " to scan list, total devices = " + numDevices, "i");
         // Trigger device event
-        LogMessage("Found a new BTLE device in scan", "i");
-        FoundDevice();
+        //FoundDevice();
+      } else { 
+        LogMessage("Found new BTLE device with rssi = " + rssi + " dBm", "i");
       }
     }
   };
@@ -431,7 +443,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Allows the user to check battery level
    */
-  @SimpleFunction(description = "Starts BTLE scanning")
+  @SimpleFunction(description = "Reads WICED Sense kit battery level.")
   public void ReadBatteryLevel() { 
     String functionName = "ReadBatteryLevel";
     if (mConnectionState == STATE_CONNECTED) { 
@@ -460,6 +472,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       // Force the LE scan
       try { 
         bluetoothAdapter.startLeScan(mLeScanCallback);
+        LogMessage("Starting LE scan", "i");
       } catch (Exception e) { 
         LogMessage("Failed to start LE scan", "e");
         scanning = false;
@@ -477,6 +490,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       try { 
         bluetoothAdapter.stopLeScan(mLeScanCallback);
         scanning = false;
+        LogMessage("Stopping LE scan with " + numDevices + " devices", "i");
+
+        // fire off event
+        //FoundDevice();
       } catch (Exception e) { 
         LogMessage("Failed to stop LE scan", "e");
       }
@@ -489,7 +506,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    */
 
   /** Gets Battery Level */
-  @SimpleProperty(description = "Queries Connected state", 
+  @SimpleProperty(description = "Returns the battery level.", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public int BatteryLevel() {
@@ -593,7 +610,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     for (int loop1 = 0; loop1 < numDevices; loop1++) {
       // recover next device in list
       tempDevice = mLeDevices.get(loop1); 
-      testname = tempDevice.getName() + ":" + tempDevice.toString();
+      
+      //testname = tempDevice.getName() + ":" + tempDevice.toString();
+      testname = GetDeviceNameAndAddress(tempDevice);
   
       // check if this is the device
       if (testname.equals(name)) { 
@@ -730,17 +749,25 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     List<String> listOfBTLEDevices = new ArrayList<String>();
     String deviceName;
     BluetoothDevice nextDevice;
+    int foundCount = 0;
 
     if (numDevices == 0) {
       listOfBTLEDevices.add("No devices found");
       LogMessage("Did not find any devices to connect", "i");
     } else { 
+      LogMessage("Finding names in " + numDevices + "devices", "i");
       for (int loop1 = 0; loop1 < numDevices; loop1++) {
         nextDevice = mLeDevices.get(loop1);
         if (nextDevice != null) { 
-          deviceName = nextDevice.getName(); 
-          listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
+          //deviceName = nextDevice.getName(); 
+          //listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
+          deviceName = GetDeviceNameAndAddress(nextDevice);
+          listOfBTLEDevices.add(deviceName);
+          foundCount++;
         }
+      }
+      if (foundCount == 0) {
+        listOfBTLEDevices.add("All devices are null");
       }
     }
 
