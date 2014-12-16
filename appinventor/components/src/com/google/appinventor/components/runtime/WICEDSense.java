@@ -104,7 +104,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private BluetoothGattCharacteristic mBatteryCharacteristic = null;
 
   // Holds Battery level
-  private int batteryLevel = -1;
+  private int mBatteryLevel = -1;
 
   private String mXAccel = "";
   private String mYAccel = "";
@@ -227,10 +227,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         numDevices++;
 
         LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " to scan list, total devices = " + numDevices, "i");
-        // Trigger device event
-        //FoundDevice();
-      } else { 
-        LogMessage("Found new BTLE device with rssi = " + rssi + " dBm", "i");
+      //} else { 
+      //  LogMessage("Found new BTLE device with rssi = " + rssi + " dBm", "i");
       }
     }
   };
@@ -257,7 +255,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             LogMessage("Connected to BLTE device", "i");
 
             // Trigger device discovery 
-            mBluetoothGatt.discoverServices();
+//            mBluetoothGatt.discoverServices();
 
           } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
              mConnectionState = STATE_DISCONNECTED;
@@ -280,7 +278,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           LogMessage("Updating RSSI from remove device = " + rssi + " dBm", "i");
 
           // update RSSI
-          RSSIUpdated();
+          //  Events in Callbacks don't appear to be working
+          // RSSIUpdated();
         }
         
         @Override
@@ -321,7 +320,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             if (validWICEDDevice) { 
               LogMessage("Found service on WICED Sense device", "i");
               // turn on notifications if needed
-              SensorsEnabled(mSensorsEnabled);
+              //SensorsEnabled(mSensorsEnabled);
 
             } else { 
               LogMessage("Connected device is not a WICED Sense kit", "e");
@@ -331,7 +330,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             }
 
             // Triggers callback for connected device
-            Connected();
+            //Connected();
           } else {
             LogMessage("onServicesDiscovered received but failed", "e");
           }
@@ -345,13 +344,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           if (status == BluetoothGatt.GATT_SUCCESS) {
             if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
               try {
-                batteryLevel = characteristic.getIntValue(
+                mBatteryLevel = characteristic.getIntValue(
                                BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                LogMessage("Read battery level " + batteryLevel + "%", "i");
+                LogMessage("Read battery level " + mBatteryLevel + "%", "i");
 
                 // trigger event
-                BatteryLevelUpdated();
-              } catch (Throwable t) {
+                //BatteryLevelUpdated();
+              } catch (Exception e) {
                 LogMessage("Unable to read battery level.", "e");
                 return;
               }
@@ -448,8 +447,14 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String functionName = "ReadBatteryLevel";
     if (mConnectionState == STATE_CONNECTED) { 
       if (validWICEDDevice) { 
-        mBluetoothGatt.readCharacteristic(mBatteryCharacteristic);
-        LogMessage("Reading battery characteristic", "i");
+        if (mBatteryCharacteristic == null) { 
+          LogMessage("Reading null battery characteristic", "e");
+        } else { 
+          mBluetoothGatt.readCharacteristic(mBatteryCharacteristic);
+          LogMessage("Reading battery characteristic", "i");
+        }
+      } else { 
+        LogMessage("Trying to reading battery without a WICED Sense device", "e");
       }
     } else { 
       LogMessage("Trying to reading battery before connected", "e");
@@ -493,7 +498,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         LogMessage("Stopping LE scan with " + numDevices + " devices", "i");
 
         // fire off event
-        //FoundDevice();
+        if (numDevices > 0) { 
+          FoundDevice();
+        }
       } catch (Exception e) { 
         LogMessage("Failed to stop LE scan", "e");
       }
@@ -510,7 +517,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public int BatteryLevel() {
-    return batteryLevel;
+    return mBatteryLevel;
   }
 
   /** Makes sure GATT profile is connected */
@@ -577,24 +584,21 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     }
   }
 
-//  /**
-//   * Sets up device discovery
-//   */
-//  @SimpleFunction(description = "Initiates a service discovery")
-//  public void DiscoverServices() { 
-//    String functionName = "DiscoverServices";
-//
-//    // on the connection, runs services
-//    if (mConnectionState == STATE_CONNECTED) { 
-//      boolean discoverStatus = mBluetoothGatt.discoverServices();
-//      mLogMessage = "Discover Services, status: " + discoverStatus;
-//      Log.i(LOG_TAG, "Starting Discover services flag");
-//    } else { 
-//      mLogMessage = "Trying to discover services, but device is not connected";
-//      Log.w(LOG_TAG, mLogMessage);
-//
-//    }
-//  }
+  /**
+   * Sets up device discovery
+   */
+  @SimpleFunction(description = "Initiates a service discovery")
+  public void DiscoverServices() { 
+    String functionName = "DiscoverServices";
+
+    // on the connection, runs services
+    if (mConnectionState == STATE_CONNECTED) { 
+      boolean discoverStatus = mBluetoothGatt.discoverServices();
+      LogMessage("Discover Services, status: " + discoverStatus, "i");
+    } else { 
+      LogMessage("Discover Services, but device is not connected", "e");
+    }
+  }
 
   /**
    * Allows the Connect to Device
@@ -610,8 +614,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     for (int loop1 = 0; loop1 < numDevices; loop1++) {
       // recover next device in list
       tempDevice = mLeDevices.get(loop1); 
-      
-      //testname = tempDevice.getName() + ":" + tempDevice.toString();
       testname = GetDeviceNameAndAddress(tempDevice);
   
       // check if this is the device
@@ -624,7 +626,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     // Fire off the callback
     if (foundDevice && (mConnectionState == STATE_DISCONNECTED)) { 
       mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
-      LogMessage("Connecting device " + mDevice.getName() + ":" + mDevice.toString(), "i");
+      LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
     } else { 
       LogMessage("Trying to connected without a found device", "e");
     }
@@ -759,8 +761,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       for (int loop1 = 0; loop1 < numDevices; loop1++) {
         nextDevice = mLeDevices.get(loop1);
         if (nextDevice != null) { 
-          //deviceName = nextDevice.getName(); 
-          //listOfBTLEDevices.add(deviceName + ":" + nextDevice.toString());
           deviceName = GetDeviceNameAndAddress(nextDevice);
           listOfBTLEDevices.add(deviceName);
           foundCount++;
