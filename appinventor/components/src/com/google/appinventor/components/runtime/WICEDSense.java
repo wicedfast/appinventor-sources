@@ -255,6 +255,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             LogMessage("Connected to BLTE device", "i");
 
             // Trigger device discovery 
+            //gatt.discoverServices();
 //            mBluetoothGatt.discoverServices();
 
           } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -447,11 +448,29 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String functionName = "ReadBatteryLevel";
     if (mConnectionState == STATE_CONNECTED) { 
       if (validWICEDDevice) { 
-        if (mBatteryCharacteristic == null) { 
-          LogMessage("Reading null battery characteristic", "e");
-        } else { 
-          mBluetoothGatt.readCharacteristic(mBatteryCharacteristic);
-          LogMessage("Reading battery characteristic", "i");
+
+        // Get the Characteristics 
+        BluetoothGattService mService;
+        for (int loop1 = 0; loop1 < mGattServices.size(); loop1++) {
+          mService = mGattServices.get(loop1);
+          // get battery service
+          if (BATTERY_SERVICE_UUID.equals(mService.getUuid())) { 
+            mBatteryService = mService;
+            mBatteryCharacteristic = mBatteryService.getCharacteristic(BATTERY_LEVEL_UUID);
+          } 
+        }
+
+        // recover battery characteristic 
+        if (mBatteryService == null) { 
+          LogMessage("Reading null battery service", "e");
+        } else {
+          mBatteryCharacteristic = mBatteryService.getCharacteristic(BATTERY_LEVEL_UUID);
+          if (mBatteryCharacteristic == null) { 
+            LogMessage("Reading null battery characteristic", "e");
+          } else { 
+            mBluetoothGatt.readCharacteristic(mBatteryCharacteristic);
+            LogMessage("Reading battery characteristic", "i");
+          }
         }
       } else { 
         LogMessage("Trying to reading battery without a WICED Sense device", "e");
@@ -663,12 +682,28 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
     // Fire off characteristic 
     if (validWICEDDevice) { 
-      mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
-      if (mSensorsEnabled) { 
-        LogMessage("Turning on Sensor notifications", "i");
+
+      // Recover sensor service
+      BluetoothGattService mService;
+      for (int loop1 = 0; loop1 < mGattServices.size(); loop1++) {
+         mService = mGattServices.get(loop1);
+         if (SENSOR_SERVICE_UUID.equals(mService.getUuid())) { 
+           mSensorService = mService;
+           mSensorNotification = mSensorService.getCharacteristic(SENSOR_NOTIFICATION_UUID);
+         } 
+      }
+
+      // Write the characteristic
+      if (mSensorNotification == null) { 
+        LogMessage("Trying to set sensors notifciation with null pointer", "e");
       } else { 
-        LogMessage("Turning off Sensor notifications", "i");
-        mLogMessage = "Turning off Sensor notifications";
+        mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+        if (mSensorsEnabled) { 
+          LogMessage("Turning on Sensor notifications", "i");
+        } else { 
+          LogMessage("Turning off Sensor notifications", "i");
+          mLogMessage = "Turning off Sensor notifications";
+        }
       }
     }
   }
