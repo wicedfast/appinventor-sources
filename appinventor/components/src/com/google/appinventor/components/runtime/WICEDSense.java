@@ -112,9 +112,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   
   // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
-  private static final int STATE_CONNECTING = 1;
+  private static final int STATE_NEED_SERVICES = 1;
   private static final int STATE_CONNECTED = 2;
-
 
   /** Descriptor used to enable/disable notifications/indications */
   private static final UUID CLIENT_CONFIG_UUID = UUID
@@ -251,8 +250,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
           //String intentAction;
           if (newState == BluetoothProfile.STATE_CONNECTED) {
-            mConnectionState = STATE_CONNECTED;
-            LogMessage("Connected to BLTE device", "i");
+            //mConnectionState = STATE_CONNECTED;
+            mConnectionState = STATE_NEED_SERVICES;
+            LogMessage("Connected to BLTE device, need service discovery", "i");
 
             // Trigger device discovery 
             //gatt.discoverServices();
@@ -290,6 +290,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             // record services 
             mGattServices = gatt.getServices();
             validWICEDDevice = true;
+
+            // update connection state
+            if (mConnectionState == STATE_NEED_SERVICES) { 
+              mConnectionState = STATE_CONNECTED;
+            }
   
             // log message
             LogMessage("Found " + mGattServices.size() + " Device services", "i");
@@ -369,7 +374,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             mXAccel = bytesToHex(value);
             LogMessage("Reading back sensor data", "i");
             // Set notification     
-            SensorsUpdated();
+            //SensorsUpdated();
           }
         }
    };
@@ -406,10 +411,12 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback for RSSI data
    */
+  /*
   @SimpleEvent(description = "RSSI Read Event.")
   public void RSSIUpdated() { 
     EventDispatcher.dispatchEvent(this, "RSSIUpdated");
   }
+  */ 
  
   /**
    * Callback events for device connection
@@ -422,18 +429,18 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback events for Sensor Update
    */
-  @SimpleEvent(description = "Sensor data updated.")
-  public void SensorsUpdated() { 
-    EventDispatcher.dispatchEvent(this, "SensorsUpdated");
-  }
+//  @SimpleEvent(description = "Sensor data updated.")
+//  public void SensorsUpdated() { 
+//    EventDispatcher.dispatchEvent(this, "SensorsUpdated");
+//  }
 
   /**
    * Callback events for batery levels
    */
-  @SimpleEvent(description = "Received Battery Level.")
-  public void BatteryLevelUpdated() { 
-    EventDispatcher.dispatchEvent(this, "BatteryLevelUpdated");
-  }
+//  @SimpleEvent(description = "Received Battery Level.")
+//  public void BatteryLevelUpdated() { 
+//    EventDispatcher.dispatchEvent(this, "BatteryLevelUpdated");
+//  }
 
   /**  ----------------------------------------------------------------------
    *   Function calls
@@ -539,6 +546,18 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     return mBatteryLevel;
   }
 
+  /** Checks if we need services discovered */
+  @SimpleProperty(description = "Queries if Device Services have been discoverd", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public boolean NeedServices() {
+    if (mConnectionState == STATE_NEED_SERVICES) { 
+      return true;
+    } else { 
+      return false;
+    }
+  }
+
   /** Makes sure GATT profile is connected */
   @SimpleProperty(description = "Queries Connected state", 
                   category = PropertyCategory.BEHAVIOR,
@@ -596,7 +615,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   public void Disconnect() { 
     String functionName = "Disconnect";
 
-    if (mConnectionState == STATE_CONNECTED) { 
+    if (mConnectionState == STATE_CONNECTED || mConnectionState == STATE_NEED_SERVICES) {
       mBluetoothGatt.disconnect();
     } else { 
       LogMessage("Trying to disconnect without a connected device", "e");
