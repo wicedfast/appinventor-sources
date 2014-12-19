@@ -372,7 +372,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           // set the enable value
           boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
           if (success) {
-            LogMessage("setCharacteristicsNotification = " + mSensorsEnabled, "i");
+            LogMessage("Was able to write sensor notification characteristics", "i");
           } else { 
             LogMessage("Failed to write sensor notification characteristic", "e");
           }
@@ -740,10 +740,15 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           return;
         }
 
+        // set values in the descriptor
+        if (mSensorsEnabled) { 
+          mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        } else { 
+          mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+        }
+
         // write the gatt descriptor
-        mBluetoothGatt.write(mSensorNotificationClientConfig, 
-               mSensorsEnabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                               : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+        mBluetoothGatt.writeDescriptor(mSensorNotificationClientConfig); 
 
         //BluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
         if (mSensorsEnabled) { 
