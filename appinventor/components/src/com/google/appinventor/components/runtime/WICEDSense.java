@@ -107,9 +107,19 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   // Holds Battery level
   private int mBatteryLevel = -1;
 
-  private String mXAccel = "";
-  private String mYAccel = "";
-  private String mZAccel = "";
+  // Holds the sensor data
+  private float mXAccel = 0;
+  private float mYAccel = 0;
+  private float mZAccel = 0;
+  private float mXGyro = 0;
+  private float mYGyro = 0;
+  private float mZGyro = 0;
+  private float mXMagnetometer = 0;
+  private float mYMagnetometer = 0;
+  private float mZMagnetometer = 0;
+  private float mHumidity = 0;
+  private float mPressure = 0;
+  private float mTemperature = 0;
   
   // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
@@ -384,9 +394,47 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
                          BluetoothGattCharacteristic characteristic) {
           if (SENSOR_NOTIFICATION_UUID.equals(characteristic.getUuid())) {
             byte[] value = characteristic.getValue();
-            mXAccel = bytesToHex(value);
-            LogMessage("Reading back sensor data = " + value, "i");
-            // Set notification     
+            int bitMask = value[0];
+            int index = 1;
+
+            if ((bitMask & 0x1)>0) { 
+              mXAccel = (value[index+1] << 8) + (value[  index] & 0xFF);
+              mYAccel = (value[index+3] << 8) + (value[index+2] & 0xFF);
+              mZAccel = (value[index+5] << 8) + (value[index+4] & 0xFF);
+              index = index + 6;
+            }
+            if ((bitMask & 0x2)>0) { 
+              mXGyro = (value[index+1] << 8) + (value[  index] & 0xFF);
+              mYGyro = (value[index+3] << 8) + (value[index+2] & 0xFF);
+              mZGyro = (value[index+5] << 8) + (value[index+4] & 0xFF);
+              mXGyro = mXGyro / (float)100.0;
+              mYGyro = mYGyro / (float)100.0;
+              mZGyro = mZGyro / (float)100.0;
+              index = index + 6;
+            }
+            if ((bitMask & 0x4)>0) { 
+              mHumidity =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+              mHumidity = mHumidity / (float)10.0;
+              index = index + 2;
+            }
+            if ((bitMask & 0x8)>0) { 
+              mXMagnetometer = (value[index+1] << 8) + (value[  index] & 0xFF);
+              mYMagnetometer = (value[index+3] << 8) + (value[index+2] & 0xFF);
+              mZMagnetometer = (value[index+5] << 8) + (value[index+4] & 0xFF);
+              index = index + 6;
+            }
+            if ((bitMask & 0x10)>0) { 
+              mPressure =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+              mPressure = mPressure / (float)10.0;
+              index = index + 2;
+            }
+            if ((bitMask & 0x20)>0) { 
+              mTemperature =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+              mTemperature = mTemperature / (float)10.0;
+              index = index + 2;
+            }
+
+            LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
             //SensorsUpdated();
           }
         }
@@ -775,19 +823,115 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
 
   /**
-   * Acceleremeter sensor data
+   * Return the X Accelerometer sensor data
    */
-  @SimpleProperty(description = "Gets Sensor data", category = PropertyCategory.BEHAVIOR, userVisible = true)
-  public String XAccel() {
+  @SimpleProperty(description = "Get X Accelerometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float XAccel() {
     return mXAccel;
   }
-  @SimpleProperty(description = "Gets Sensor data", category = PropertyCategory.BEHAVIOR, userVisible = true)
-  public String YAccel() {
+
+  /**
+   * Return the Y Accelerometer sensor data
+   */
+  @SimpleProperty(description = "Get Y Accelerometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float YAccel() {
     return mYAccel;
   }
-  @SimpleProperty(description = "Gets Sensor data", category = PropertyCategory.BEHAVIOR, userVisible = true)
-  public String ZAccel() {
+
+  /**
+   * Return the Z Accelerometer sensor data
+   */
+  @SimpleProperty(description = "Get Y Accelerometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float ZAccel() {
     return mZAccel;
+  }
+
+  /**
+   * Return the X Gyro sensor data
+   */
+  @SimpleProperty(description = "Get X Gyro data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float XGyro() {
+    return mXGyro;
+  }
+
+  /**
+   * Return the Y Gyro sensor data
+   */
+  @SimpleProperty(description = "Get Y Gyro data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float YGyro() {
+    return mYGyro;
+  }
+
+  /**
+   * Return the Z Gyro sensor data
+   */
+  @SimpleProperty(description = "Get Y Gyro data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float ZGyro() {
+    return mZGyro;
+  }
+
+
+  /**
+   * Return the X Magnetometer sensor data
+   */
+  @SimpleProperty(description = "Get X Magnetometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float XMagnetometer() {
+    return mXMagnetometer;
+  }
+
+  /**
+   * Return the Y Magnetometer sensor data
+   */
+  @SimpleProperty(description = "Get Y Magnetometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float YMagnetometer() {
+    return mYMagnetometer;
+  }
+
+  /**
+   * Return the Z Magnetometer sensor data
+   */
+  @SimpleProperty(description = "Get Y Magnetometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float ZMagnetometer() {
+    return mZMagnetometer;
+  }
+
+  /**
+   * Return the Compass heading
+   */
+  @SimpleProperty(description = "Get the compass heading", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float Heading() {
+    double mag = Math.sqrt(mXMagnetometer*mXMagnetometer + mYMagnetometer*mYMagnetometer);
+    double nX = mXMagnetometer/mag;
+    double nY = mYMagnetometer/mag;
+    double heading;
+
+    // convert radians to degrees
+    heading = Math.atan2(nY, nX) * 57.295779578;
+    return (float)heading;
+  }
+
+  /**
+   * Return the Humidity sensor data
+   */
+  @SimpleProperty(description = "Get Humidity data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float Humidity() {
+    return mHumidity;
+  }
+
+  /**
+   * Return the Pressure sensor data
+   */
+  @SimpleProperty(description = "Get Pressure data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float Pressure() {
+    return mPressure;
+  }
+
+  /**
+   * Return the Temperature sensor data
+   */
+  @SimpleProperty(description = "Get Temperature data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  public float Temperature() {
+    return mTemperature;
   }
 
   /**
