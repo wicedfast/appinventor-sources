@@ -198,7 +198,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       }
   
       // trigger event
-      Info();
+      //Info();
     }
   }
 
@@ -395,10 +395,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback for LogMessages
    */
-  @SimpleEvent(description = "Event the log message is updated.")
+/** @SimpleEvent(description = "Event the log message is updated.")
   public void Info() { 
     EventDispatcher.dispatchEvent(this, "Info");
   }
+*/
 
   /**
    * Callback for Found Device Event
@@ -421,10 +422,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback events for device connection
    */
-  @SimpleEvent(description = "BTLE Connection Event.")
+/**  @SimpleEvent(description = "BTLE Connection Event.")
   public void Connected() { 
     EventDispatcher.dispatchEvent(this, "Connected");
   }
+*/
 
   /**
    * Callback events for Sensor Update
@@ -547,6 +549,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /** Checks if we need services discovered */
+/*
   @SimpleProperty(description = "Queries if Device Services have been discoverd", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
@@ -557,6 +560,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       return false;
     }
   }
+*/
 
   /** Makes sure GATT profile is connected */
   @SimpleProperty(description = "Queries Connected state", 
@@ -625,6 +629,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Sets up device discovery
    */
+/*
   @SimpleFunction(description = "Initiates a service discovery")
   public void DiscoverServices() { 
     String functionName = "DiscoverServices";
@@ -637,6 +642,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       LogMessage("Discover Services, but device is not connected", "e");
     }
   }
+*/
 
   /**
    * Allows the Connect to Device
