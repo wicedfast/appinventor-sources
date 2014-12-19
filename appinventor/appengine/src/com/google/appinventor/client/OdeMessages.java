@@ -4802,6 +4802,42 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("FoundServices")
   @Description("")
   String FoundServicesProperties();
+
+  @DefaultMessage("XGyro")
+  @Description("")
+  String XGyroProperties();
+
+  @DefaultMessage("YGyro")
+  @Description("")
+  String YGyroProperties();
+
+  @DefaultMessage("ZGyro")
+  @Description("")
+  String ZGyroProperties();
+
+  @DefaultMessage("XMagnetometer")
+  @Description("")
+  String XMagnetometerProperties();
+
+  @DefaultMessage("YMagnetometer")
+  @Description("")
+  String YMagnetometerProperties();
+
+  @DefaultMessage("ZMagnetometer")
+  @Description("")
+  String ZMagnetometerProperties();
+
+  @DefaultMessage("Humidity")
+  @Description("")
+  String HumidityProperties();
+
+  @DefaultMessage("Pressure")
+  @Description("")
+  String PressureProperties();
+
+  @DefaultMessage("Temperature")
+  @Description("")
+  String TemperatureProperties();
   
   //Mock Components
   @DefaultMessage("add items...")

@@ -224,6 +224,15 @@ public class TranslationComponentProperty {
     map.put("BatteryLevel", MESSAGES.BatteryLevelProperties());
     map.put("SensorsEnabled", MESSAGES.SensorsEnabledProperties());
     map.put("FoundServices", MESSAGES.FoundServicesProperties());
+    map.put("XGyro", MESSAGES.XGyroProperties());
+    map.put("YGyro", MESSAGES.YGyroProperties());
+    map.put("ZGyro", MESSAGES.ZGyroProperties());
+    map.put("XMagnetometer", MESSAGES.XMagnetometerProperties());
+    map.put("YMagnetometer", MESSAGES.YMagnetometerProperties());
+    map.put("ZMagnetometer", MESSAGES.ZMagnetometerProperties());
+    map.put("Humidity", MESSAGES.HumidityProperties());
+    map.put("Pressure", MESSAGES.PressureProperties());
+    map.put("Temperature", MESSAGES.TemperatureProperties());
 
     return map;
   }
