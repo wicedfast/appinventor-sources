@@ -4798,6 +4798,10 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("SensorsEnabled")
   @Description("")
   String SensorsEnabledProperties();
+
+  @DefaultMessage("FoundServices")
+  @Description("")
+  String FoundServicesProperties();
   
   //Mock Components
   @DefaultMessage("add items...")

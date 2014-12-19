@@ -20,6 +20,7 @@ import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 
 
 import com.google.appinventor.components.annotations.DesignerComponent;
@@ -324,15 +325,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
             // Warnings if not valid
             if (validWICEDDevice) { 
-              LogMessage("Found service on WICED Sense device", "i");
-              // turn on notifications if needed
-              //SensorsEnabled(mSensorsEnabled);
-
+              LogMessage("Found services on WICED Sense device", "i");
             } else { 
               LogMessage("Connected device is not a WICED Sense kit", "e");
-              /** issues message to reader */
-             // form.dispatchErrorOccurredEvent(this, "onServicesDiscovered",
-             //     ErrorMessages.ERROR_NON_WICED_SENSE_DEVICE);
             }
 
             // Triggers callback for connected device
@@ -367,12 +362,30 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         }
 
         @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+
+          if (mSensorNotification == null) {
+            LogMessage("onDescriptorWrite: mSensorNotification == null", "e");
+            return;
+          }
+
+          // set the enable value
+          boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+          if (success) {
+            LogMessage("setCharacteristicsNotification = " + mSensorsEnabled, "i");
+          } else { 
+            LogMessage("Failed to write sensor notification characteristic", "e");
+          }
+        }
+
+
+        @Override
         public void onCharacteristicChanged(BluetoothGatt gatt,
                          BluetoothGattCharacteristic characteristic) {
           if (SENSOR_NOTIFICATION_UUID.equals(characteristic.getUuid())) {
             byte[] value = characteristic.getValue();
             mXAccel = bytesToHex(value);
-            LogMessage("Reading back sensor data", "i");
+            LogMessage("Reading back sensor data = " + value, "i");
             // Set notification     
             //SensorsUpdated();
           }
@@ -548,26 +561,24 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     return mBatteryLevel;
   }
 
-  /** Checks if we need services discovered */
-/*
+  /** Checks we have found services on the device */
   @SimpleProperty(description = "Queries if Device Services have been discoverd", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
-  public boolean NeedServices() {
-    if (mConnectionState == STATE_NEED_SERVICES) { 
+  public boolean FoundServices() {
+    if (mConnectionState == STATE_CONNECTED) { 
       return true;
     } else { 
       return false;
     }
   }
-*/
 
   /** Makes sure GATT profile is connected */
   @SimpleProperty(description = "Queries Connected state", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public boolean IsConnected() {
-    if (mConnectionState == STATE_CONNECTED) { 
+    if (mConnectionState == STATE_CONNECTED || mConnectionState == STATE_NEED_SERVICES) { 
       return true;
     } else { 
       return false;
@@ -621,6 +632,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
     if (mConnectionState == STATE_CONNECTED || mConnectionState == STATE_NEED_SERVICES) {
       mBluetoothGatt.disconnect();
+      LogMessage("Disconnecting from device", "i");
     } else { 
       LogMessage("Trying to disconnect without a connected device", "e");
     }
@@ -629,20 +641,18 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Sets up device discovery
    */
-/*
   @SimpleFunction(description = "Initiates a service discovery")
   public void DiscoverServices() { 
     String functionName = "DiscoverServices";
 
     // on the connection, runs services
-    if (mConnectionState == STATE_CONNECTED) { 
+    if (mConnectionState == STATE_NEED_SERVICES) { 
       boolean discoverStatus = mBluetoothGatt.discoverServices();
       LogMessage("Discover Services, status: " + discoverStatus, "i");
     } else { 
       LogMessage("Discover Services, but device is not connected", "e");
     }
   }
-*/
 
   /**
    * Allows the Connect to Device
@@ -720,9 +730,22 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
       // Write the characteristic
       if (mSensorNotification == null) { 
-        LogMessage("Trying to set sensors notifciation with null pointer", "e");
+        LogMessage("Trying to set sensors notification with null pointer", "e");
       } else { 
-        mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+        BluetoothGattDescriptor mSensorNotificationClientConfig;
+
+        mSensorNotificationClientConfig = mSensorNotification.getDescriptor(CLIENT_CONFIG_UUID);
+        if (mSensorNotificationClientConfig == null) {
+          LogMessage("Cannot find sensor client descriptor, this device is not supported", "e");
+          return;
+        }
+
+        // write the gatt descriptor
+        mBluetoothGatt.write(mSensorNotificationClientConfig, 
+               mSensorsEnabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                               : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+
+        //BluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
         if (mSensorsEnabled) { 
           LogMessage("Turning on Sensor notifications", "i");
         } else { 

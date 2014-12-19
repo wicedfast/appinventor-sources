@@ -223,6 +223,7 @@ public class TranslationComponentProperty {
     map.put("DeviceServices", MESSAGES.DeviceServicesProperties());
     map.put("BatteryLevel", MESSAGES.BatteryLevelProperties());
     map.put("SensorsEnabled", MESSAGES.SensorsEnabledProperties());
+    map.put("FoundServices", MESSAGES.FoundServicesProperties());
 
     return map;
   }
