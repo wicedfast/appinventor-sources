@@ -80,10 +80,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private BluetoothDevice mDevice;
   
   // Holds list of devices
-  private int numDevices = 0;
-  private ArrayList<BluetoothDevice> mLeDevices;
-  // not sure why but leDeviceListAdapter was crashing -need to debug
-  // private LeDeviceListAdapter leDeviceListAdapter;
+  private ArrayList<DeviceScanRecord> mScannedDevices;
   
   // holds sensors data
   private boolean mSensorsEnabled = false;
@@ -152,7 +149,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String functionName = "WICEDSense";
 
     // setup new list of devices
-    mLeDevices = new ArrayList<BluetoothDevice>();
+    mScannedDevices = new ArrayList<DeviceScanRecord>();
 
     // initialize GATT services
     mGattServices = new ArrayList<BluetoothGattService>();
@@ -210,10 +207,66 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     }
   }
 
+
+  /** Log Messages */
+  private void CleanupBTLEState() { 
+
+    mConnectionState = STATE_DISCONNECTED;
+
+    // null out services
+    mSensorService = null;
+    mSensorNotification = null;
+    mBatteryService = null;
+    mBatteryCharacteristic = null;
+    mGattServices.clear();
+    validWICEDDevice = false;
+    mScannedDevices.clear();
+
+    LogMessage("Issuing a cleanup of the BTLE state", "i");
+  }
+
   /** ----------------------------------------------------------------------
    *  BTLE Code Section
    *  ----------------------------------------------------------------------
    */
+
+  /* Create Device list from scan */
+  public class DeviceScanRecord { 
+    private BluetoothDevice device = null;
+    private int rssi = 0;
+    private byte[] scanRecord = null;
+      
+    public DeviceScanRecord() { 
+      device = null;
+      rssi = 0;
+      scanRecord = null;
+    }
+    
+    // set the container to scan results
+    public void setRecord(final BluetoothDevice deviceVal, int rssiVal, byte[] scanRecordVal) {
+      this.device = deviceVal;
+      this.rssi = rssiVal;
+
+      this.scanRecord = new byte[scanRecordVal.length];
+      for (int loop1 = 0; loop1 < scanRecordVal.length; loop1++) { 
+        this.scanRecord[loop1] = scanRecordVal[loop1];
+      }
+    }
+
+    // get the RSSI
+    public int getRssi() { 
+      return rssi;
+    }
+    // get the device handle
+    public BluetoothDevice getDevice() { 
+      return device;
+    }
+    // returns the scan record data
+    public String getScanRecord() { 
+      return bytesToHex(scanRecord);
+    }
+   
+  }
 
   /** create adaptor */
   public static BluetoothAdapter newBluetoothAdapter(Context context) {
@@ -228,15 +281,28 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     @Override
     public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
 
-      // Record the first device you find
-      if (!mLeDevices.contains(device)) { 
-        mLeDevices.add(device);
-        numDevices++;
+      // Add new device
+      DeviceScanRecord newDevice = new DeviceScanRecord();
+      boolean foundNewDevice = true;
+  
+      // get the device record
+      newDevice.setRecord(device, rssi, scanRecord);
 
-        LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " to scan list, total devices = " + numDevices, "i");
-      //} else { 
-      //  LogMessage("Found new BTLE device with rssi = " + rssi + " dBm", "i");
+      // Search through found devices and find matching one
+      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+        DeviceScanRecord prevDevice;
+
+        // see if we already know about this device
+        prevDevice = mScannedDevices.get(loop1); 
+        if (device.equals(prevDevice.getDevice())) { 
+          foundNewDevice = false;
+        }
       }
+      if (foundNewDevice) {
+        mScannedDevices.add(newDevice);
+        LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " with rssi = " + rssi + " dBm to scan list", "i");
+      }
+
     }
   };
 
@@ -259,11 +325,14 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           //String intentAction;
           if (newState == BluetoothProfile.STATE_CONNECTED) {
             mConnectionState = STATE_NEED_SERVICES;
-            LogMessage("Connected to BLTE device, need service discovery", "i");
 
             // Trigger device discovery 
-            mBluetoothGatt.discoverServices();
-
+            LogMessage("Connected to BLTE device, starting service discovery", "i");
+            boolean success = mBluetoothGatt.discoverServices();
+            if (!success) { 
+              LogMessage("Cannot start service discovery for some reason", "e");
+            }
+          // Finalizing the disconnect profile
           } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
              mConnectionState = STATE_DISCONNECTED;
 
@@ -292,6 +361,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         @Override
         // New services discovered
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+
+          LogMessage("onServicesDiscovered callback with status = " + status, "i");
+  
           if (status == BluetoothGatt.GATT_SUCCESS) {
             // record services 
             mGattServices = gatt.getServices();
@@ -383,7 +455,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           }
         }
 
-
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt,
                          BluetoothGattCharacteristic characteristic) {
@@ -449,10 +520,20 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    */
 
   /**
+   * Callback for an Error Event
+   */
+  @SimpleEvent(description = "Event when there is an Error.")
+  public void Error() { 
+    LogMessage("Firing the Error()", "e");
+    EventDispatcher.dispatchEvent(this, "Error");
+  }
+
+  /**
    * Callback for Found Device Event
    */
   @SimpleEvent(description = "Event when an LE Device is found in scan.")
   public void FoundDevice() { 
+    LogMessage("Firing the FoundDevice() event", "i");
     EventDispatcher.dispatchEvent(this, "FoundDevice");
   }
 
@@ -531,8 +612,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     
     // If not scanning, clear list rescan
     if (!scanning) { 
-      numDevices = 0;
-      mLeDevices.clear();
+      mScannedDevices.clear();
       scanning = true;
 
       // Force the LE scan
@@ -556,10 +636,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       try { 
         bluetoothAdapter.stopLeScan(mLeScanCallback);
         scanning = false;
-        LogMessage("Stopping LE scan with " + numDevices + " devices", "i");
+        LogMessage("Stopping LE scan with " + mScannedDevices.size() + " devices", "i");
 
         // fire off event
-        if (numDevices > 0) { 
+        if (mScannedDevices.size() > 0) { 
           FoundDevice();
         }
       } catch (Exception e) { 
@@ -659,19 +739,62 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /**
+   * Allows to Connect to closest Device 
+   */
+  @SimpleFunction(description = "Starts GATT connection to closest device")
+  public void ConnectClosest() { 
+    String functionName = "ConnectClosest";
+    DeviceScanRecord nextScannedDevice;
+    String testname;
+    boolean foundDevice = false;
+    int maxRssi = -160;
+
+    // log message
+    LogMessage("Testing " + mScannedDevices.size() + " device(s) for closest scanned BTLE device", "i");
+
+    // Search through strings and find matching one
+    for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+
+      // get the next device
+      nextScannedDevice = mScannedDevices.get(loop1); 
+      LogMessage("Testing device " + GetDeviceNameAndAddress(nextScannedDevice.getDevice()) + ", rssi = " + nextScannedDevice.getRssi() + " dBm", "i");
+
+      // update maximum value
+      if (nextScannedDevice.getRssi() > maxRssi) { 
+        maxRssi = nextScannedDevice.getRssi();
+        // setup device name
+        mDevice = nextScannedDevice.getDevice();
+        //tempDevice = nextScannedDevice.getDevice();
+        testname = GetDeviceNameAndAddress(mDevice);
+        LogMessage("Found closest device " + testname + ", rssi = " + maxRssi + " dBm", "i");
+        foundDevice = true;
+      }
+    }
+
+    // Fire off the callback
+    if (foundDevice && (mConnectionState == STATE_DISCONNECTED)) { 
+      mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+      LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
+    } else { 
+      LogMessage("Trying to connected without a found device", "e");
+    }
+  }
+
+  /**
    * Allows the Connect to Device
    */
   @SimpleFunction(description = "Starts GATT connection")
   public void Connect(String name) { 
     String functionName = "Connect";
+    DeviceScanRecord nextScanRecord;
     BluetoothDevice tempDevice;
     String testname;
     boolean foundDevice = false;
 
     // Search through strings and find matching one
-    for (int loop1 = 0; loop1 < numDevices; loop1++) {
+    for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
       // recover next device in list
-      tempDevice = mLeDevices.get(loop1); 
+      tempDevice = mScannedDevices.get(loop1).getDevice();
       testname = GetDeviceNameAndAddress(tempDevice);
   
       // check if this is the device
@@ -931,14 +1054,15 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     BluetoothDevice nextDevice;
     int foundCount = 0;
 
-    if (numDevices == 0) {
+    if (mScannedDevices.size() == 0) {
       listOfBTLEDevices.add("No devices found");
       LogMessage("Did not find any devices to connect", "i");
     } else { 
-      LogMessage("Finding names in " + numDevices + "devices", "i");
-      for (int loop1 = 0; loop1 < numDevices; loop1++) {
-        nextDevice = mLeDevices.get(loop1);
+      LogMessage("Finding names in " + mScannedDevices.size() + " devices", "i");
+      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+        nextDevice = mScannedDevices.get(loop1).getDevice();
         if (nextDevice != null) { 
+          //deviceName = GetDeviceNameAndAddress(nextDevice) + mScannedDevices.get(loop1).getScanRecord();
           deviceName = GetDeviceNameAndAddress(nextDevice);
           listOfBTLEDevices.add(deviceName);
           foundCount++;
