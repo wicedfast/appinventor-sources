@@ -233,6 +233,8 @@ public class TranslationComponentProperty {
     map.put("Humidity", MESSAGES.HumidityProperties());
     map.put("Pressure", MESSAGES.PressureProperties());
     map.put("Temperature", MESSAGES.TemperatureProperties());
+    map.put("Timestamp", MESSAGES.TimestampProperties());
+    map.put("UseFahrenheit", MESSAGES.TimestampProperties());
 
     return map;
   }

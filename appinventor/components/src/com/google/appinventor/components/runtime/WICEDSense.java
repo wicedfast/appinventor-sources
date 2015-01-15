@@ -41,6 +41,8 @@ import com.google.appinventor.components.runtime.EventDispatcher;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.UUID;
 
 /**
@@ -57,7 +59,8 @@ import java.util.UUID;
 @UsesPermissions(permissionNames = 
                  "android.permission.BLUETOOTH, " + 
                  "android.permission.BLUETOOTH_ADMIN")
-public final class WICEDSense extends AndroidNonvisibleComponent implements Component {
+public final class WICEDSense extends AndroidNonvisibleComponent 
+implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deleteable {
 
   private static final String LOG_TAG = "WICEDSense";
   private final Activity activity;
@@ -104,6 +107,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   // Holds Battery level
   private int mBatteryLevel = -1;
 
+  // Holds time stamp data
+  private long startTime = 0;
+  private long currentTime = 0;
+
   // Holds the sensor data
   private float mXAccel = 0;
   private float mYAccel = 0;
@@ -117,6 +124,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private float mHumidity = 0;
   private float mPressure = 0;
   private float mTemperature = 0;
+
+  // set default temperature setting
+  private boolean mUseFahrenheit = true;
   
   // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
@@ -148,6 +158,10 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     // names the function
     String functionName = "WICEDSense";
 
+    // record the constructor time
+    startTime  = System.nanoTime();
+    currentTime  = startTime;
+
     // setup new list of devices
     mScannedDevices = new ArrayList<DeviceScanRecord>();
 
@@ -176,6 +190,12 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       isEnabled = true;
       LogMessage("Found the BTLE Device on platform", "i");
     }
+
+    // register with the forms to that OnResume and OnNewIntent
+    // messages get sent to this component
+    form.registerForOnResume(this);
+    //form.registerForOnNewIntent(this);
+    form.registerForOnPause(this);
 
   }
   /** Get Device name */
@@ -231,7 +251,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    */
 
   /* Create Device list from scan */
-  public class DeviceScanRecord { 
+  public class DeviceScanRecord implements Comparable<DeviceScanRecord> { 
     private BluetoothDevice device = null;
     private int rssi = 0;
     private byte[] scanRecord = null;
@@ -266,6 +286,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       return bytesToHex(scanRecord);
     }
    
+    public int compareTo(DeviceScanRecord compareScan) { 
+      return compareScan.getRssi() - this.rssi;
+    }
   }
 
   /** create adaptor */
@@ -276,7 +299,6 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /** Device scan callback. */
-  //private BluetoothAdapter.LeScanCallback mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
   private LeScanCallback mLeScanCallback = new LeScanCallback() {
     @Override
     public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
@@ -288,19 +310,23 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
       // get the device record
       newDevice.setRecord(device, rssi, scanRecord);
 
-      // Search through found devices and find matching one
-      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
-        DeviceScanRecord prevDevice;
-
-        // see if we already know about this device
-        prevDevice = mScannedDevices.get(loop1); 
-        if (device.equals(prevDevice.getDevice())) { 
-          foundNewDevice = false;
+      // make sure to ignore null devices
+      if (device != null) { 
+  
+        // Search through found devices and find matching one
+        for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+          DeviceScanRecord prevDevice;
+  
+          // see if we already know about this device
+          prevDevice = mScannedDevices.get(loop1); 
+          if (device.equals(prevDevice.getDevice())) { 
+            foundNewDevice = false;
+          }
         }
-      }
-      if (foundNewDevice) {
-        mScannedDevices.add(newDevice);
-        LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " with rssi = " + rssi + " dBm to scan list", "i");
+        if (foundNewDevice) {
+          mScannedDevices.add(newDevice);
+          LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " with rssi = " + rssi + " dBm to scan list", "i");
+        }
       }
 
     }
@@ -322,6 +348,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+          LogMessage("onConnectionStateChange callback with status = " + status, "i");
+
           //String intentAction;
           if (newState == BluetoothProfile.STATE_CONNECTED) {
             mConnectionState = STATE_NEED_SERVICES;
@@ -335,6 +363,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
           // Finalizing the disconnect profile
           } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
              mConnectionState = STATE_DISCONNECTED;
+
+             // close out connection
+//             mBluetoothGatt.close();
 
              // null out services
              mSensorService = null;
@@ -350,12 +381,13 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
         @Override
         // New services discovered
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+          LogMessage("onReadRemoteRssi callback with status = " + status, "i");
+
           deviceRssi = rssi;
           LogMessage("Updating RSSI from remove device = " + rssi + " dBm", "i");
 
           // update RSSI
-          //  Events in Callbacks don't appear to be working
-          // RSSIUpdated();
+          //RSSIUpdated();
         }
         
         @Override
@@ -463,6 +495,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
             int bitMask = value[0];
             int index = 1;
 
+            // Update timestamp
+            currentTime = System.nanoTime();
+
             if ((bitMask & 0x1)>0) { 
               mXAccel = (value[index+1] << 8) + (value[  index] & 0xFF);
               mYAccel = (value[index+3] << 8) + (value[index+2] & 0xFF);
@@ -522,11 +557,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback for an Error Event
    */
-  @SimpleEvent(description = "Event when there is an Error.")
-  public void Error() { 
-    LogMessage("Firing the Error()", "e");
-    EventDispatcher.dispatchEvent(this, "Error");
-  }
+//  @SimpleEvent(description = "Event when there is an Error.")
+//  public void Error() { 
+//    LogMessage("Firing the Error()", "e");
+//    EventDispatcher.dispatchEvent(this, "Error");
+//  }
 
   /**
    * Callback for Found Device Event
@@ -540,12 +575,17 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   /**
    * Callback for RSSI data
    */
-  /*
-  @SimpleEvent(description = "RSSI Read Event.")
-  public void RSSIUpdated() { 
-    EventDispatcher.dispatchEvent(this, "RSSIUpdated");
-  }
-  */ 
+//  @SimpleEvent(description = "RSSI Read Event.")
+//  public void RSSIUpdated() { 
+//    boolean success;
+//    LogMessage("Firing the RSSIUpdated() event", "i");
+//    success = EventDispatcher.dispatchEvent(this, "RSSIUpdated");
+//    if (!success) { 
+//      LogMessage("Failed to dispatch RSSIUpdated() event", "e");
+//    } else { 
+//      LogMessage("Success in dispatching RSSIUpdated() event", "i");
+//    }
+//  }
  
   /**
    * Callback events for device connection
@@ -640,6 +680,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
 
         // fire off event
         if (mScannedDevices.size() > 0) { 
+    
+          // Sort the list of devices by RSSI
+          Collections.sort(mScannedDevices);
+
+          // Fire off the event
           FoundDevice();
         }
       } catch (Exception e) { 
@@ -739,6 +784,15 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   }
 
   /**
+   * Resets the internal counter
+   */
+  @SimpleFunction(description = "Resets the internal timer")
+  public void ResetTimer() {
+    startTime = System.nanoTime();
+    currentTime = System.nanoTime();
+  }
+
+  /**
    * Allows to Connect to closest Device 
    */
   @SimpleFunction(description = "Starts GATT connection to closest device")
@@ -749,34 +803,40 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     boolean foundDevice = false;
     int maxRssi = -160;
 
-    // log message
-    LogMessage("Testing " + mScannedDevices.size() + " device(s) for closest scanned BTLE device", "i");
-
-    // Search through strings and find matching one
-    for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
-
-      // get the next device
-      nextScannedDevice = mScannedDevices.get(loop1); 
-      LogMessage("Testing device " + GetDeviceNameAndAddress(nextScannedDevice.getDevice()) + ", rssi = " + nextScannedDevice.getRssi() + " dBm", "i");
-
-      // update maximum value
-      if (nextScannedDevice.getRssi() > maxRssi) { 
-        maxRssi = nextScannedDevice.getRssi();
-        // setup device name
-        mDevice = nextScannedDevice.getDevice();
-        //tempDevice = nextScannedDevice.getDevice();
-        testname = GetDeviceNameAndAddress(mDevice);
-        LogMessage("Found closest device " + testname + ", rssi = " + maxRssi + " dBm", "i");
-        foundDevice = true;
+    // check connected state
+    if (mConnectionState == STATE_DISCONNECTED) { 
+  
+      // log message
+      LogMessage("Testing " + mScannedDevices.size() + " device(s) for closest scanned BTLE device", "i");
+  
+      // Search through strings and find matching one
+      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+  
+        // get the next device
+        nextScannedDevice = mScannedDevices.get(loop1); 
+        LogMessage("Testing device " + GetDeviceNameAndAddress(nextScannedDevice.getDevice()) + ", rssi = " + nextScannedDevice.getRssi() + " dBm", "i");
+  
+        // update maximum value
+        if (nextScannedDevice.getRssi() > maxRssi) { 
+          maxRssi = nextScannedDevice.getRssi();
+          // setup device name
+          mDevice = nextScannedDevice.getDevice();
+          //tempDevice = nextScannedDevice.getDevice();
+          testname = GetDeviceNameAndAddress(mDevice);
+          LogMessage("Found closest device " + testname + ", rssi = " + maxRssi + " dBm", "i");
+          foundDevice = true;
+        }
       }
-    }
-
-    // Fire off the callback
-    if (foundDevice && (mConnectionState == STATE_DISCONNECTED)) { 
-      mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
-      LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
+  
+      // Found the best device to connect
+      if (foundDevice) {
+        mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+        LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
+      } else { 
+        LogMessage("No device found to connect", "e");
+      }
     } else { 
-      LogMessage("Trying to connected without a found device", "e");
+      LogMessage("Trying to connect with an already connected device", "e");
     }
   }
 
@@ -791,26 +851,78 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
     String testname;
     boolean foundDevice = false;
 
-    // Search through strings and find matching one
-    for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
-      // recover next device in list
-      tempDevice = mScannedDevices.get(loop1).getDevice();
-      testname = GetDeviceNameAndAddress(tempDevice);
-  
-      // check if this is the device
-      if (testname.equals(name)) { 
-        mDevice = tempDevice;
-        foundDevice = true;
-      }
-    }
+    if (mConnectionState == STATE_DISCONNECTED) { 
 
-    // Fire off the callback
-    if (foundDevice && (mConnectionState == STATE_DISCONNECTED)) { 
-      mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
-      LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
+      // Search through strings and find matching one
+      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+        // recover next device in list
+        tempDevice = mScannedDevices.get(loop1).getDevice();
+        testname = GetDeviceNameAndAddress(tempDevice);
+    
+        // check if this is the device
+        if (testname.equals(name)) { 
+          mDevice = tempDevice;
+          foundDevice = true;
+        }
+      }
+  
+      // Fire off the callback
+      if (foundDevice) { 
+        mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+        LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
+      } else { 
+        LogMessage("No device found to connect", "e");
+      }
     } else { 
-      LogMessage("Trying to connected without a found device", "e");
+      LogMessage("Trying to connect with an already connected device", "e");
     }
+  }
+
+  /**
+   * Returns the time since reset in milliseconds
+   *
+   */
+  @SimpleProperty(description = "Returns milliseconds since reset for current sensor data", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public int Timestamp() {
+    long timeDiff;
+    int timeMilliseconds;
+
+    // compute nanoseconds since start time
+    timeDiff = currentTime - startTime;
+    
+    // Convert to milliseconds
+    timeDiff = timeDiff / 1000000;
+
+    // convert to int
+    timeMilliseconds = (int)timeDiff;
+      
+    return timeMilliseconds;
+  }
+
+  /**
+   * Sets the temperature setting for Fahrenheit or Celsius
+   *
+   */
+  @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
+      defaultValue = "True")
+  @SimpleProperty(description = "Sets temperature data in Fahrenheit, not Celius", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public void UseFahrenheit(boolean enableFlag) {
+    mUseFahrenheit = enableFlag;
+  }
+  
+  /**
+   * Sets the temperature setting for Fahrenheit or Celsius
+   *
+   */
+  @SimpleProperty(description = "Returns temperature format in Fahrenheit, not Celius", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public boolean UseFahrenheit() {
+    return mUseFahrenheit;
   }
 
   /**
@@ -823,6 +935,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
   public boolean SensorsEnabled() {
     return mSensorsEnabled;
   }
+
+
 
   /**
    * Turns on sensors
@@ -1000,7 +1114,17 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    */
   @SimpleProperty(description = "Get Temperature data", category = PropertyCategory.BEHAVIOR, userVisible = true)
   public float Temperature() {
-    return mTemperature;
+    float tempConvert;
+
+    // get temperature in celsius
+    tempConvert = mTemperature;
+
+    // Convert to Fahrenheit if selected
+    if (mUseFahrenheit) { 
+      tempConvert = tempConvert* (float)(9.0/5.0) + (float)32.0; 
+    }
+
+    return tempConvert;
   }
 
   /**
@@ -1081,5 +1205,29 @@ public final class WICEDSense extends AndroidNonvisibleComponent implements Comp
    *
    *
    */
+  public void onResume() {
+
+  }
+
+  public void onPause() {
+    //Log.d(TAG, "OnPause method started.");
+    //if (nfcAdapter != null) {
+    //  GingerbreadUtil.disableNFCAdapter(activity, nfcAdapter);
+    //}
+    //nfcAdapter.disableForegroundDispatch(activity);
+  }
+
+  @Override
+  public void onDelete() {
+    // TODO Auto-generated method stub
+    // need to delete the nearfieldActivity
+
+  }
+
+  @Override
+  public void onStop() {
+    // TODO Auto-generated method stub
+  }
+
 
 }

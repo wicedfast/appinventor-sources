@@ -4838,6 +4838,14 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("Temperature")
   @Description("")
   String TemperatureProperties();
+
+  @DefaultMessage("Timestamp")
+  @Description("")
+  String TimestampProperties();
+
+  @DefaultMessage("Timestamp")
+  @Description("")
+  String UseFahrenheitProperties();
   
   //Mock Components
   @DefaultMessage("add items...")
