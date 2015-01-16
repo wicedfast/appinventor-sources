@@ -234,7 +234,8 @@ public class TranslationComponentProperty {
     map.put("Pressure", MESSAGES.PressureProperties());
     map.put("Temperature", MESSAGES.TemperatureProperties());
     map.put("Timestamp", MESSAGES.TimestampProperties());
-    map.put("UseFahrenheit", MESSAGES.TimestampProperties());
+    map.put("UseFahrenheit", MESSAGES.UseFahrenheitProperties());
+    map.put("RunInBackground", MESSAGES.RunInBackgroundProperties());
 
     return map;
   }

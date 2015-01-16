@@ -89,7 +89,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   private boolean mSensorsEnabled = false;
   
   // Gatt client pointer
-  private BluetoothGatt mBluetoothGatt;
+  private BluetoothGatt mBluetoothGatt = null;
 
   // Service founds
   private List<BluetoothGattService> mGattServices;
@@ -127,6 +127,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   // set default temperature setting
   private boolean mUseFahrenheit = true;
+  private boolean mRunInBackground = true;
   
   // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
@@ -194,6 +195,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     // register with the forms to that OnResume and OnNewIntent
     // messages get sent to this component
     form.registerForOnResume(this);
+    form.registerForOnStop(this);
     //form.registerForOnNewIntent(this);
     form.registerForOnPause(this);
 
@@ -290,6 +292,45 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
       return compareScan.getRssi() - this.rssi;
     }
   }
+
+  // Set the sensor state
+  public void setSensorState() { 
+
+    // Fire off characteristic 
+    if (validWICEDDevice) { 
+
+      // Write the characteristic
+      if (mSensorNotification == null) { 
+        LogMessage("Trying to set sensors notification with null pointer", "e");
+      } else { 
+        BluetoothGattDescriptor mSensorNotificationClientConfig;
+
+        // Update descriptor client config
+        mSensorNotificationClientConfig = mSensorNotification.getDescriptor(CLIENT_CONFIG_UUID);
+        if (mSensorNotificationClientConfig == null) {
+          LogMessage("Cannot find sensor client descriptor, this device is not supported", "e");
+          return;
+        }
+
+        // set values in the descriptor
+        if (mSensorsEnabled) { 
+          mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        } else { 
+          mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+        }
+
+        // write the gatt descriptor
+        mBluetoothGatt.writeDescriptor(mSensorNotificationClientConfig); 
+        if (mSensorsEnabled) { 
+          LogMessage("Turning on Sensor notifications", "i");
+        } else { 
+          LogMessage("Turning off Sensor notifications", "i");
+        }
+      }
+    }
+  }
+
+
 
   /** create adaptor */
   public static BluetoothAdapter newBluetoothAdapter(Context context) {
@@ -439,6 +480,9 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
               LogMessage("Connected device is not a WICED Sense kit", "e");
             }
 
+            // Set the sensor state directly
+            setSensorState();
+
             // Triggers callback for connected device
             //Connected();
           } else {
@@ -473,18 +517,19 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
 
+          LogMessage("onDescriptorWrite with status = " + status, "i");
           if (mSensorNotification == null) {
             LogMessage("onDescriptorWrite: mSensorNotification == null", "e");
             return;
           }
 
           // set the enable value
-          boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
-          if (success) {
-            LogMessage("Was able to write sensor notification characteristics", "i");
-          } else { 
-            LogMessage("Failed to write sensor notification characteristic", "e");
-          }
+          //boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+          //if (success) {
+          //  LogMessage("Was able to write sensor notification characteristics", "i");
+          //} else { 
+          //  LogMessage("Failed to write sensor notification characteristic", "e");
+          // }
         }
 
         @Override
@@ -748,12 +793,12 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Returns text log
    */
-  @SimpleProperty(description = "Queries Text", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public String Text() {
-    return mLogMessage;
-  }
+//  @SimpleProperty(description = "Queries current log message", 
+//                  category = PropertyCategory.BEHAVIOR,
+//                  userVisible = true)
+//  public String Text() {
+//    return mLogMessage;
+//  }
 
   /**
    * Allows the user to Read remote RSSI
@@ -787,15 +832,15 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Resets the internal counter
    */
   @SimpleFunction(description = "Resets the internal timer")
-  public void ResetTimer() {
+  public void ResetTimestamp() {
     startTime = System.nanoTime();
-    currentTime = System.nanoTime();
+    currentTime = startTime;
   }
 
   /**
    * Allows to Connect to closest Device 
    */
-  @SimpleFunction(description = "Starts GATT connection to closest device")
+  @SimpleFunction(description = "Connects to the WICED sense kit with the strongest RSSI")
   public void ConnectClosest() { 
     String functionName = "ConnectClosest";
     DeviceScanRecord nextScannedDevice;
@@ -843,7 +888,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Allows the Connect to Device
    */
-  @SimpleFunction(description = "Starts GATT connection")
+  @SimpleFunction(description = "Connects to the named WICED Sense kit")
   public void Connect(String name) { 
     String functionName = "Connect";
     DeviceScanRecord nextScanRecord;
@@ -882,7 +927,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Returns the time since reset in milliseconds
    *
    */
-  @SimpleProperty(description = "Returns milliseconds since reset for current sensor data", 
+  @SimpleProperty(description = "Returns timestamp of sensor data in milliseconds since reset", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public int Timestamp() {
@@ -906,7 +951,20 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
-      defaultValue = "True")
+                    defaultValue = "True")
+  @SimpleProperty(description = "Keeps BTLE running in background", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public void RunInBackground(boolean enableFlag) {
+    mRunInBackground = enableFlag;
+  }
+
+  /**
+   * Sets the temperature setting for Fahrenheit or Celsius
+   *
+   */
+  @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
+                    defaultValue = "True")
   @SimpleProperty(description = "Sets temperature data in Fahrenheit, not Celius", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
@@ -918,7 +976,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Sets the temperature setting for Fahrenheit or Celsius
    *
    */
-  @SimpleProperty(description = "Returns temperature format in Fahrenheit, not Celius", 
+  @SimpleProperty(description = "Returns true if temperature format is in Fahrenheit", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public boolean UseFahrenheit() {
@@ -929,14 +987,12 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Returns if Sensors are enabled
    *
    */
-  @SimpleProperty(description = "Checks if Sensors are enabled", 
+  @SimpleProperty(description = "Returns true if Sensors are enabled", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public boolean SensorsEnabled() {
     return mSensorsEnabled;
   }
-
-
 
   /**
    * Turns on sensors
@@ -944,52 +1000,21 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
       defaultValue = "False")
-  @SimpleProperty(description = "Checks if Sensors are enabled", 
+  @SimpleProperty(description = "Sets the sensor enabled flag", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public void SensorsEnabled(boolean enableFlag) {
 
-    // turn on sensors
-    if (enableFlag && !mSensorsEnabled) { 
-      mSensorsEnabled = true;
-    } else if (!enableFlag && mSensorsEnabled) {
-      mSensorsEnabled = false;
+    mSensorsEnabled = enableFlag;
+    if (enableFlag) { 
+      LogMessage("Setting SensorsEnabled to true", "i");
+    } else {
+      LogMessage("Setting SensorsEnabled to false", "i");
     }
 
-    // Fire off characteristic 
-    if (validWICEDDevice) { 
+    // Transfer to device if it's connected
+    setSensorState();
 
-      // Write the characteristic
-      if (mSensorNotification == null) { 
-        LogMessage("Trying to set sensors notification with null pointer", "e");
-      } else { 
-        BluetoothGattDescriptor mSensorNotificationClientConfig;
-
-        // Update descriptor client config
-        mSensorNotificationClientConfig = mSensorNotification.getDescriptor(CLIENT_CONFIG_UUID);
-        if (mSensorNotificationClientConfig == null) {
-          LogMessage("Cannot find sensor client descriptor, this device is not supported", "e");
-          return;
-        }
-
-        // set values in the descriptor
-        if (mSensorsEnabled) { 
-          mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        } else { 
-          mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-        }
-
-        // write the gatt descriptor
-        mBluetoothGatt.writeDescriptor(mSensorNotificationClientConfig); 
-
-        //BluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
-        if (mSensorsEnabled) { 
-          LogMessage("Turning on Sensor notifications", "i");
-        } else { 
-          LogMessage("Turning off Sensor notifications", "i");
-        }
-      }
-    }
   }
 
   /**
@@ -1024,7 +1049,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Z Accelerometer sensor data
    */
-  @SimpleProperty(description = "Get Y Accelerometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get Z Accelerometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
   public float ZAccel() {
     return mZAccel;
   }
@@ -1048,7 +1073,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Z Gyro sensor data
    */
-  @SimpleProperty(description = "Get Y Gyro data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get Z Gyro data", category = PropertyCategory.BEHAVIOR, userVisible = true)
   public float ZGyro() {
     return mZGyro;
   }
@@ -1073,7 +1098,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Z Magnetometer sensor data
    */
-  @SimpleProperty(description = "Get Y Magnetometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get Z Magnetometer data", category = PropertyCategory.BEHAVIOR, userVisible = true)
   public float ZMagnetometer() {
     return mZMagnetometer;
   }
@@ -1081,22 +1106,33 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Compass heading
    */
-  @SimpleProperty(description = "Get the compass heading", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get the compass heading in degrees assuming device is flat", category = PropertyCategory.BEHAVIOR, userVisible = true)
   public float Heading() {
     double mag = Math.sqrt(mXMagnetometer*mXMagnetometer + mYMagnetometer*mYMagnetometer);
-    double nX = mXMagnetometer/mag;
-    double nY = mYMagnetometer/mag;
     double heading;
 
-    // convert radians to degrees
-    heading = Math.atan2(nY, nX) * 57.295779578;
+    LogMessage("Calculating heading from X+Y magnetometer data (" + 
+                mXMagnetometer + "," + mYMagnetometer + "), mag = " + mag, "i");
+
+    if (mag > 0.0) { 
+      // convert x,y to radians to degrees
+      double nX = mXMagnetometer/mag;
+      double nY = mYMagnetometer/mag;
+      heading = Math.atan2(nY, nX) * 57.295779578;
+    } else { 
+      heading = 0.0;
+    }
+
+    LogMessage("Heading = " + heading, "i");
     return (float)heading;
   }
 
   /**
    * Return the Humidity sensor data
    */
-  @SimpleProperty(description = "Get Humidity data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get Humidity data in %", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
   public float Humidity() {
     return mHumidity;
   }
@@ -1104,7 +1140,9 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Pressure sensor data
    */
-  @SimpleProperty(description = "Get Pressure data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get Pressure data in millibar", 
+                  category = PropertyCategory.BEHAVIOR, 
+                  userVisible = true)
   public float Pressure() {
     return mPressure;
   }
@@ -1112,7 +1150,9 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Temperature sensor data
    */
-  @SimpleProperty(description = "Get Temperature data", category = PropertyCategory.BEHAVIOR, userVisible = true)
+  @SimpleProperty(description = "Get Temperature data in Fahrenheit or Celsius", 
+                  category = PropertyCategory.BEHAVIOR, 
+                  userVisible = true)
   public float Temperature() {
     float tempConvert;
 
@@ -1205,11 +1245,14 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    *
    */
-  public void onResume() {
 
+  // 
+  public void onResume() {
+    LogMessage("Resuming the WICED Sense component", "i");
   }
 
   public void onPause() {
+    LogMessage("Calling onPause()", "i");
     //Log.d(TAG, "OnPause method started.");
     //if (nfcAdapter != null) {
     //  GingerbreadUtil.disableNFCAdapter(activity, nfcAdapter);
@@ -1219,15 +1262,24 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   @Override
   public void onDelete() {
-    // TODO Auto-generated method stub
-    // need to delete the nearfieldActivity
-
+    LogMessage("Deleting the WICED Sense component", "i");
+    if (mBluetoothGatt != null) { 
+      mBluetoothGatt.close();
+    }
   }
 
   @Override
   public void onStop() {
-    // TODO Auto-generated method stub
-  }
+    LogMessage("Calling onStop()", "i");
 
+    // Force a disconnect on Stop
+    if (mRunInBackground) { 
+      LogMessage("Continuing to run in the background", "i");
+    } else { 
+      LogMessage("Auto-disconnecting device from onStop()", "i");
+      Disconnect();
+    }
+
+  }
 
 }

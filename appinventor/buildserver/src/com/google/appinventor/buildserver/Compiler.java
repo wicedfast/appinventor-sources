@@ -88,8 +88,10 @@ public final class Compiler {
   private static final String ARMEABI_DIR_NAME = "armeabi";
   private static final String ARMEABI_V7A_DIR_NAME = "armeabi-v7a";
 
+  //private static final String DEFAULT_ICON =
+  //    RUNTIME_FILES_DIR + "ya.png";
   private static final String DEFAULT_ICON =
-      RUNTIME_FILES_DIR + "ya.png";
+      RUNTIME_FILES_DIR + "wiced_icon.png";
 
   private static final String DEFAULT_VERSION_CODE = "1";
   private static final String DEFAULT_VERSION_NAME = "1.0";
@@ -516,9 +518,13 @@ public final class Compiler {
     out.println("________Preparing application icon");
     File resDir = createDirectory(buildDir, "res");
     File drawableDir = createDirectory(resDir, "drawable");
-    if (!compiler.prepareApplicationIcon(new File(drawableDir, "ya.png"))) {
+    //if (!compiler.prepareApplicationIcon(new File(drawableDir, "ya.png"))) {
+    //  return false;
+    //}
+    if (!compiler.prepareApplicationIcon(new File(drawableDir, "wiced_icon.png"))) {
       return false;
     }
+
     setProgress(10);
 
     // Create anim directory and animation xml files

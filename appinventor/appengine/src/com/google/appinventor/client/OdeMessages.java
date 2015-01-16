@@ -4843,9 +4843,13 @@ public interface OdeMessages extends Messages {
   @Description("")
   String TimestampProperties();
 
-  @DefaultMessage("Timestamp")
+  @DefaultMessage("UseFahrenheit")
   @Description("")
   String UseFahrenheitProperties();
+
+  @DefaultMessage("RunInBackground")
+  @Description("")
+  String RunInBackgroundProperties();
   
   //Mock Components
   @DefaultMessage("add items...")
