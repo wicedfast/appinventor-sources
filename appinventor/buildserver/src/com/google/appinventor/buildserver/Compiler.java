@@ -380,7 +380,8 @@ public final class Compiler {
       // risk for App Inventor App end-users.
       out.write("android:debuggable=\"false\" ");
       out.write("android:label=\"" + projectName + "\" ");
-      out.write("android:icon=\"@drawable/ya\" ");
+//      out.write("android:icon=\"@drawable/ya\" ");
+      out.write("android:icon=\"@drawable/wiced_icon\" ");
       if (isForCompanion) {              // This is to hook into ACRA
         out.write("android:name=\"com.google.appinventor.components.runtime.ReplApplication\" ");
       }
