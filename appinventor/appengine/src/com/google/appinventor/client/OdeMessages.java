@@ -4852,6 +4852,14 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("RunInBackground")
   @Description("")
   String RunInBackgroundProperties();
+
+  @DefaultMessage("ScanRSSI")
+  @Description("")
+  String ScanRSSIProperties();
+
+  @DefaultMessage("ScanRecords")
+  @Description("")
+  String ScanRecordsProperties();
   
   //Mock Components
   @DefaultMessage("add items...")

@@ -236,6 +236,8 @@ public class TranslationComponentProperty {
     map.put("Timestamp", MESSAGES.TimestampProperties());
     map.put("UseFahrenheit", MESSAGES.UseFahrenheitProperties());
     map.put("RunInBackground", MESSAGES.RunInBackgroundProperties());
+    map.put("ScanRSSI", MESSAGES.ScanRSSIProperties());
+    map.put("ScanRecords", MESSAGES.ScanRecordsProperties());
 
     return map;
   }

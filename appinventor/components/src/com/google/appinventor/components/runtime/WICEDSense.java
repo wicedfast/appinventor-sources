@@ -1209,6 +1209,52 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   }
 
   /**
+   * Allows to access of scan records found in the Scan
+   */
+  @SimpleProperty(description = "Lists the scan record of all BLTE devices find in scan", category = PropertyCategory.BEHAVIOR)
+  public List<String> ScanRecords() { 
+    List<String> listOfScanRecords = new ArrayList<String>();
+    BluetoothDevice nextDevice;
+
+    if (mScannedDevices.size() == 0) {
+      LogMessage("Did not find any devices in scan", "i");
+    } else { 
+      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+        nextDevice = mScannedDevices.get(loop1).getDevice();
+        if (nextDevice != null) { 
+          listOfScanRecords.add(mScannedDevices.get(loop1).getScanRecord());
+          LogMessage("Adding scan record to list: " + mScannedDevices.get(loop1).getScanRecord(), "i");
+        }
+      }
+    }
+
+    return listOfScanRecords;
+  }
+
+  /**
+   * Allows to access of RSSI found in scan
+   */
+  @SimpleProperty(description = "Lists the RSSI of all BLTE devices find in scan", category = PropertyCategory.BEHAVIOR)
+  public List<Integer> ScanRSSI() { 
+    List<Integer> listOfRSSI = new ArrayList<Integer>();
+    BluetoothDevice nextDevice;
+
+    if (mScannedDevices.size() == 0) {
+      LogMessage("Did not find any devices in scan", "i");
+    } else { 
+      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+        nextDevice = mScannedDevices.get(loop1).getDevice();
+        if (nextDevice != null) { 
+          listOfRSSI.add(mScannedDevices.get(loop1).getRssi());
+          LogMessage("Adding scan RSSI to list: " + mScannedDevices.get(loop1).getRssi(), "i");
+        }
+      }
+    }
+
+    return listOfRSSI;
+  }
+
+  /**
    * Allows to access a list of Devices found in the Scan
    */
   @SimpleProperty(description = "Lists the BLTE devices", category = PropertyCategory.BEHAVIOR)
