@@ -54,7 +54,7 @@ import java.util.UUID;
     category = ComponentCategory.CONNECTIVITY,
     description = "The WICEDSense component is still experimental",
     nonVisible = true,
-    iconName = "images/bluetooth.png")
+    iconName = "images/wicedSenseIcon.png")
 @SimpleObject
 @UsesPermissions(permissionNames = 
                  "android.permission.BLUETOOTH, " + 

@@ -3,6 +3,8 @@
 // Copyright 2011-2012 MIT, All rights reserved
 // Released under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
+//
+// David Garrett - added WICEDSense translation components
 
 package com.google.appinventor.client.editor.simple.palette;
 
@@ -121,6 +123,7 @@ public final class SimpleComponentDescriptor {
     bundledImages.put("images/spinner.png", images.spinner());
     bundledImages.put("images/listView.png", images.listview());
     bundledImages.put("images/yandex.png", images.yandex());
+    bundledImages.put("images/wicedSenseIcon.png", images.wicedSenseIcon());
     imagesInitialized = true;
   }
 
