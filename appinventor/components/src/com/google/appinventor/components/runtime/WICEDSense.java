@@ -110,6 +110,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   // Holds time stamp data
   private long startTime = 0;
   private long currentTime = 0;
+  private long tempCurrentTime = 0;
 
   // Holds the sensor data
   private float mXAccel = 0;
@@ -162,6 +163,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     // record the constructor time
     startTime  = System.nanoTime();
     currentTime  = startTime;
+    tempCurrentTime  = startTime;
 
     // setup new list of devices
     mScannedDevices = new ArrayList<DeviceScanRecord>();
@@ -524,12 +526,12 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
           }
 
           // set the enable value
-          //boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
-          //if (success) {
-          //  LogMessage("Was able to write sensor notification characteristics", "i");
-          //} else { 
-          //  LogMessage("Failed to write sensor notification characteristic", "e");
-          // }
+          boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+          if (success) {
+            LogMessage("Was able to write sensor notification characteristics", "i");
+          } else { 
+            LogMessage("Failed to write sensor notification characteristic", "e");
+           }
         }
 
         @Override
@@ -578,6 +580,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
               mTemperature =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
               mTemperature = mTemperature / (float)10.0;
               index = index + 2;
+              tempCurrentTime = System.nanoTime();
             }
 
             LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
@@ -835,6 +838,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   public void ResetTimestamp() {
     startTime = System.nanoTime();
     currentTime = startTime;
+    tempCurrentTime = startTime;
   }
 
   /**
@@ -936,6 +940,29 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
     // compute nanoseconds since start time
     timeDiff = currentTime - startTime;
+    
+    // Convert to milliseconds
+    timeDiff = timeDiff / 1000000;
+
+    // convert to int
+    timeMilliseconds = (int)timeDiff;
+      
+    return timeMilliseconds;
+  }
+
+  /**
+   * Returns the time since reset in milliseconds
+   *
+   */
+  @SimpleProperty(description = "Returns timestamp of just temperature, humidity and pressure sensor data in milliseconds since reset", 
+                  category = PropertyCategory.BEHAVIOR,
+                  userVisible = true)
+  public int TemperatureTimestamp() {
+    long timeDiff;
+    int timeMilliseconds;
+
+    // compute nanoseconds since start time
+    timeDiff = tempCurrentTime - startTime;
     
     // Convert to milliseconds
     timeDiff = timeDiff / 1000000;

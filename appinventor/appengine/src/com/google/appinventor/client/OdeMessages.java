@@ -4845,6 +4845,10 @@ public interface OdeMessages extends Messages {
   @Description("")
   String TimestampProperties();
 
+  @DefaultMessage("TemperatureTimestamp")
+  @Description("")
+  String TemperatureTimestampProperties();
+
   @DefaultMessage("UseFahrenheit")
   @Description("")
   String UseFahrenheitProperties();
