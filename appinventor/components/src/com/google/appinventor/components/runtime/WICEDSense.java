@@ -51,7 +51,8 @@ import java.util.UUID;
  * @author  David Garrett (not the violionist)
  */
 @DesignerComponent(version = YaVersion.WICEDSENSE_COMPONENT_VERSION,
-    category = ComponentCategory.CONNECTIVITY,
+    //category = ComponentCategory.CONNECTIVITY,
+    category = ComponentCategory.WICED,
     description = "The WICEDSense component is still experimental",
     nonVisible = true,
     iconName = "images/wicedSenseIcon.png")
@@ -1145,7 +1146,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
       // convert x,y to radians to degrees
       double nX = mXMagnetometer/mag;
       double nY = mYMagnetometer/mag;
-      heading = Math.atan2(nY, nX) * 57.295779578;
+      heading = Math.atan2(nY, nX) * 57.295779578 + 180.0;
     } else { 
       heading = 0.0;
     }
