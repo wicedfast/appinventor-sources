@@ -44,7 +44,7 @@ import java.lang.Integer;
     category = ComponentCategory.WICED,
     description = "Building a Butterworth filter block",
     nonVisible = true,
-    iconName = "images/wicedSenseIcon.png")
+    iconName = "images/butterworthFilterIcon.png")
 @SimpleObject
 public final class ButterworthFilter extends AndroidNonvisibleComponent 
 implements Component {
@@ -449,7 +449,7 @@ implements Component {
   /**
    * Pushes a sample into the filter and gets current output
    */
-  @SimpleFunction(description = "Resets the filter")
+  @SimpleFunction(description = "Runs samples through the filter")
   public float Filter(float inputSample) { 
     return (float)applyFilter((double)inputSample);
   }

@@ -241,7 +241,12 @@ public class TranslationComponentProperty {
     map.put("ScanRecords", MESSAGES.ScanRecordsProperties());
     // Butterworth Filter
     map.put("Order", MESSAGES.OrderProperties());
-    map.put("X", MESSAGES.XProperties());
+    map.put("HighpassFreq", MESSAGES.HighpassFreqProperties());
+    map.put("LowpassFreq", MESSAGES.LowpassFreqProperties());
+    map.put("SamplingFreq", MESSAGES.SamplingFreqProperties());
+    map.put("Lowpass", MESSAGES.LowpassProperties());
+    map.put("Highpass", MESSAGES.HighpassProperties());
+    map.put("FilterDelay", MESSAGES.FilterDelayProperties());
 
     return map;
   }
