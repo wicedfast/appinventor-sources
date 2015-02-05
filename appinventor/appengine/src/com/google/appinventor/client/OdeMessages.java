@@ -4864,7 +4864,36 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("ScanRecords")
   @Description("")
   String ScanRecordsProperties();
-  
+
+  // Butterworth Filter componets
+  @DefaultMessage("Order")
+  @Description("")
+  String OrderProperties();
+
+  @DefaultMessage("HighpassFreq")
+  @Description("")
+  String HighpassFreqProperties();
+
+  @DefaultMessage("LowpassFreq")
+  @Description("")
+  String LowpassFreqProperties();
+
+  @DefaultMessage("SamplingFreq")
+  @Description("")
+  String SamplingFreqProperties();
+
+  @DefaultMessage("Lowpass")
+  @Description("")
+  String LowpassProperties();
+
+  @DefaultMessage("Highpass")
+  @Description("")
+  String HighpassProperties();
+
+  @DefaultMessage("FilterDelay")
+  @Description("")
+  String FilterDelayProperties();
+
   //Mock Components
   @DefaultMessage("add items...")
   @Description("")

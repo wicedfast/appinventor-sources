@@ -32,13 +32,15 @@ import com.google.appinventor.components.runtime.EventDispatcher;
 import java.util.List;
 import java.util.ArrayList;
 import java.lang.Math;
+import java.lang.Integer;
+
 
 /**
  * Implementing a butterworth file
  *
  * @author  David Garrett (not the violionist)
  */
-@DesignerComponent(version = YaVersion.WICEDSENSE_COMPONENT_VERSION,
+@DesignerComponent(version = YaVersion.BUTTERWORTH_FILTER_COMPONENT_VERSION,
     category = ComponentCategory.WICED,
     description = "Building a Butterworth filter block",
     nonVisible = true,
@@ -72,10 +74,10 @@ implements Component {
   private int mFilterMode = BYPASS_MODE;
   private int mNumStages = 1;
   private int mNumCoef = 2;
-  private int mFilterDelay = 0;
 
-  private final int numFilterResponseTaps = 16;
-  private int[] mFilterResponse;
+  // Characterize the filter
+  private int mFilterDelay = -1;
+  private double[] mFilterResponse;
 
   // Holds filter
   private double[] gain;
@@ -93,8 +95,6 @@ implements Component {
 
     // names the function
     String functionName = "ButterworthFilter";
-
-    mFilterResponse = new int[16];
 
     // set the filter response 
     calcFilterResponse();
@@ -137,6 +137,7 @@ implements Component {
     mFilterMode = BYPASS_MODE;
     mF1 = 0.0;
     mF2 = 0.0;
+    mFilterDelay = -1;
 
     // Setup Band-pass filter
     if (mLowpassEnabled && mHighpassEnabled) {
@@ -165,14 +166,8 @@ implements Component {
       }
     }
 
-    // initialize the filter response - calculated later
-    for (int loop1 = 0; loop1 < numFilterResponseTaps; loop1++) { 
-      mFilterResponse[loop1] = 0;
-    }
-    
     // Configure the array sizes (and round up to number of stages)
     if (mFilterMode == BYPASS_MODE) { 
-      mFilterDelay = 0;
       return;
     } else if (mFilterMode == BPF_MODE) { 
       mNumStages = (mOrder + 3) / 4;
@@ -240,50 +235,142 @@ implements Component {
     gain = newGain;
     w = newState;
 
-    // Runs the filter analysis
-    analyzeFilter();
-
   }
 
+  // -----------------------------------------------
   // Run the filter through FFT analysis 
-  public void analyzeFilter() { 
-    double [] filterOut = new double[256];
+  // -----------------------------------------------
+  public void analyzeFilter(int Nfft, boolean runFFT) {
+
+
+    // Special case, with Bypass mode
+    if (mFilterMode == BYPASS_MODE) { 
+      mFilterDelay = 0;
+      if (runFFT) { 
+        mFilterResponse = new double[Nfft/2];
+        for (int loop1 = 0; loop1 < Nfft/2; loop1++) { 
+          mFilterResponse[loop1] = 0.0;
+        }
+      }
+      return;
+    } 
+
+    // ------------------------------------------------
+    //  Analyze the regular filter
+    // ------------------------------------------------
+    double [][] wSave = new double[mNumStages][mNumCoef];
+    double [] filterOut = new double[Nfft];
+    
+    // save filter state
+    for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
+      for (int loop2 = 0; loop2 < mNumCoef; loop2++) { 
+        wSave[loop1][loop2] = w[loop1][loop2];
+      }
+    }
+    resetFilter();
 
     // push through impulse resonse into filter
-    resetFilter();
-    for (int loop1 = 0; loop1 < 256; loop1++) {  
+    for (int loop1 = 0; loop1 < Nfft; loop1++) {  
       if (loop1 == 0){ 
         filterOut[loop1] = applyFilter(1.0);
       } else { 
         filterOut[loop1] = applyFilter(0.0);
       }
     }
-    resetFilter();
+
+    // return filter state to original
+    for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
+      for (int loop2 = 0; loop2 < mNumCoef; loop2++) { 
+        w[loop1][loop2] = wSave[loop1][loop2];
+      }
+    }
 
     // Find maximum energy out
     double maxOut = 0.0;
     mFilterDelay = 0;
-    for (int loop1 = 0; loop1 < 256; loop1++) {  
+    for (int loop1 = 0; loop1 < Nfft; loop1++) {  
       if (Math.abs(filterOut[loop1]) > maxOut) { 
         maxOut = Math.abs(filterOut[loop1]);
         mFilterDelay = loop1;
       }
     }
+
+    // ---------------------------------------
+    //  This runs impulse respone through FFT
+    // ---------------------------------------
+    if (runFFT) {
+
+      // allocate space
+      mFilterResponse = new double[Nfft/2];
+
+      // get the Nfft exp
+      int NfftExp = 0;
+      while (( 1 << NfftExp) < Nfft) {
+        NfftExp++;
+      }
+    
+      // Run the FFT, and sub-sample response
+      int index;
+      double [] Hreal = new double[Nfft];
+      double [] Himag = new double[Nfft];
+      // first get to Bit-reverse addressing input data
+      for (int loop1 = 0; loop1 < NfftExp; loop1++) { 
+        index = Integer.reverse(loop1) >> (32 - NfftExp); 
+        Hreal[loop1] = filterOut[index];
+        Himag[loop1] = 0.0;
+      }
+      // setup spacing
+      int spacing = 1;
+      int currentN;
+      double []xReal = new double[2];
+      double []xImag = new double[2];
   
-    // Run the FFT, and sub-sample response
-   // double[] x = new double[2];
-   // double[] exp = new double[2];
-   // int span = 128;
-   // int spacing = 2;
-   // for (int loop1 = 0; loop1 < 8; loop1++) { 
-   //   for (int loop2 = 0; loop2 < 128; loop2++) { 
-   //     x[0] = filterOut
-   //   }
-   // }
+      // Run Radix2 FFT loops - could be improve (radix4, etc, real-only version (packed complex at Nfft/2)
+      for (int loop1 = 0; loop1 < NfftExp; loop1++) { 
+        currentN = spacing*2;
+        for (int loop2 = 0; loop2 < (Nfft/currentN); loop2++) { 
+          for (int loop3 = 0; loop3 < spacing; loop3++) { 
+            index = loop2*currentN + loop3;
+            xReal[0] = Hreal[index];
+            xImag[0] = Himag[index];
+            // apply twiddle factors
+            xReal[1] = Hreal[index+spacing] * Math.cos(2*Math.PI*(double)(loop3/currentN))
+                        - Himag[index+spacing] * Math.sin(2*Math.PI*(double)(loop3/currentN));
+            xImag[1] = Hreal[index+spacing] * Math.sin(2*Math.PI*(double)(loop3/currentN))
+                        + Himag[index+spacing] * Math.cos(2*Math.PI*(double)(loop3/currentN));
+    
+            // DIT matrix
+            Hreal[index] = xReal[0] + xReal[1];
+            Himag[index] = xImag[0] + xImag[1];
+            Hreal[index+spacing] = xReal[0] - xReal[1];
+            Himag[index+spacing] = xImag[0] - xImag[1];
+          }
+        }
+      }
+  
+      // Convert filter response to Filter magnitude in dB
+      double dcValue, tmp1;
+      dcValue = 0.0;
+      LogMessage("Calculating filter response from [0,pi)", "i");
+      for (int loop1 = 0; loop1 < Nfft/2; loop1++) { 
+        tmp1 = Math.pow(Hreal[loop1],2) + Math.pow(Himag[loop1],2);
+        tmp1 = 10.0*Math.log10(tmp1); 
+        if (loop1 == 0) { 
+          dcValue = tmp1;
+        }
+        mFilterResponse[loop1] = tmp1 - dcValue;
+  
+        double ratio = (double)loop1 / (double)(Nfft/2);
+        LogMessage("  H(" + ratio + ") = " + mFilterResponse[loop1] + " dB", "i");
+  
+      }
+    }
 
   }
 
+  // -------------------------------------------------
   // reset the filter
+  // -------------------------------------------------
   public void resetFilter() { 
     LogMessage("Reseting the filter", "i");
     // clear the internal state
@@ -386,7 +473,7 @@ implements Component {
   @SimpleProperty(description = "Sets the High pass cutoff frequency in Hz.", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
-  public void HighpassCutoff(float mFhcVal) {
+  public void HighpassFreq(float mFhcVal) {
     mFhc = mFhcVal;
   }
 
@@ -396,7 +483,7 @@ implements Component {
   @SimpleProperty(description = "Sets the Low pass cutoff frequency in Hz.", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
-  public void LowpassCutoff(float mFlcVal) {
+  public void LowpassFreq(float mFlcVal) {
     if (mFlcVal != mFlc) { 
       mFlc = mFlcVal;
       calcFilterResponse();
@@ -409,7 +496,7 @@ implements Component {
   @SimpleProperty(description = "Sets the Sampling frequency in HZ.", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
-  public void SamplingFrequency(float mFsVal) {
+  public void SamplingFreq(float mFsVal) {
     if (mFsVal != mFs) { 
       mFs = mFsVal;
       calcFilterResponse();
@@ -462,20 +549,35 @@ implements Component {
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public int FilterDelay() { 
+
+    // if not calculated, run the filter response
+    int Nfft = 256;
+    if (mFilterDelay == -1) { 
+      analyzeFilter(Nfft, false);
+    }
     return mFilterDelay;
+
   }
 
-  // Reports the filter delay (approximate)
-  @SimpleProperty(description = "Returns the filter response [0,pi) in dB", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public List<Integer> FilterResponse() { 
-    List<Integer> H = new ArrayList<Integer>();
+  // Reports the filter response in dB (approximate)
+  @SimpleFunction(description = "Returns the filter response [0,pi) in dB") 
+  public List<Number> FilterResponse(int numValues) { 
+    List<Number> H = new ArrayList<Number>();
 
-    if (mFilterMode == BYPASS_MODE) { 
-      H.add(0);  
-    } else { 
-      for (int loop1 = 0; loop1 < numFilterResponseTaps; loop1++) { 
+    // convert to pow-of-two value
+    int Nfft = 1;
+    while (Nfft < numValues) { 
+      Nfft = Nfft*2;
+    }
+
+    // Analyze the filter
+    analyzeFilter(Nfft, true);
+    
+    // return value
+    for (int loop1 = 0; loop1 < Nfft/2; loop1++) { 
+      if (mFilterMode == BYPASS_MODE) { 
+        H.add(0.0);
+      } else { 
         H.add(mFilterResponse[loop1]);  
       }
     }

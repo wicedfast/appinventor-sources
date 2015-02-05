@@ -239,6 +239,9 @@ public class TranslationComponentProperty {
     map.put("RunInBackground", MESSAGES.RunInBackgroundProperties());
     map.put("ScanRSSI", MESSAGES.ScanRSSIProperties());
     map.put("ScanRecords", MESSAGES.ScanRecordsProperties());
+    // Butterworth Filter
+    map.put("Order", MESSAGES.OrderProperties());
+    map.put("X", MESSAGES.XProperties());
 
     return map;
   }

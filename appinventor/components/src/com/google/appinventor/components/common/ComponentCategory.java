@@ -55,6 +55,7 @@ import java.util.Map;
     SOCIAL("Social"),
     STORAGE("Storage"),
     CONNECTIVITY("Connectivity"),
+    WICED("WICED"),
     LEGOMINDSTORMS("LEGO\u00AE MINDSTORMS\u00AE"),
     //EXPERIMENTAL("Experimental"),
     INTERNAL("For internal use only"),
@@ -74,6 +75,7 @@ import java.util.Map;
       DOC_MAP.put("Social", "social");
       DOC_MAP.put("Storage", "storage");
       DOC_MAP.put("Connectivity", "connectivity");
+      DOC_MAP.put("WICED", "wiced");
       DOC_MAP.put("LEGO\u00AE MINDSTORMS\u00AE", "legomindstorms");
       //DOC_MAP.put("Experimental", "experimental");
     }

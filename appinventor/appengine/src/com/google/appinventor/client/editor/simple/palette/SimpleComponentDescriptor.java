@@ -124,6 +124,7 @@ public final class SimpleComponentDescriptor {
     bundledImages.put("images/listView.png", images.listview());
     bundledImages.put("images/yandex.png", images.yandex());
     bundledImages.put("images/wicedSenseIcon.png", images.wicedSenseIcon());
+    bundledImages.put("images/butterworthFilterIcon.png", images.butterworthFilterIcon());
     imagesInitialized = true;
   }
 

@@ -436,11 +436,9 @@ public class YaVersion {
   // David Garrett - start WICED Sense development
   public static final int WICEDSENSE_COMPONENT_VERSION = 1;
 
-  // David Garrett - start Bluetooth LE development
-  public static final int BLUETOOTHLE_COMPONENT_VERSION = 1;
-
-
-
+  // David Garrett - start WICED Sense development
+  public static final int BUTTERWORTH_FILTER_COMPONENT_VERSION = 1;
+  
   // For BUTTON_COMPONENT_VERSION 2:
   // - The Alignment property was renamed to TextAlignment.
   // For BUTTON_COMPONENT_VERSION 3:
