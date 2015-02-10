@@ -65,8 +65,8 @@ implements Component {
   // Global input variables
   private boolean mLowpassEnabled = true;
   private boolean mHighpassEnabled = false;
-  private double mFlc = 0.25;
-  private double mFhc = 0.35;
+  private double mFlc = 0.30;
+  private double mFhc = 0.20;
   private double mFs = 1.00;
   private int mOrder = 4;
 
@@ -139,6 +139,7 @@ implements Component {
     mF2 = 0.0;
     mFilterDelay = -1;
 
+
     // Setup Band-pass filter
     if (mLowpassEnabled && mHighpassEnabled) {
       mFilterMode = BPF_MODE;
@@ -147,12 +148,16 @@ implements Component {
       if ((mF1 == mF2) || (mF1 > mF2) || (mF1 == 0.0) || (mF2 == 0.0) 
            || (mF1 > (mFs/2.0)) || (mF2 > (mFs/2.0))) { 
         mFilterMode = BYPASS_MODE;
+        LogMessage("Bandpass filters settings are in error, 0 < Fhc < Flc < Fs/2", "e");
+        LogMessage(" Fhc = " + mF1 + ", Flc = " + mF2 + ", Fs/2 = " + (mFs/2.0), "e");
       }
     // Setup low-pass filter
     } else if (mLowpassEnabled) { 
       mF1 = mFlc;
       if ((mF1 == 0.0) || (mF1 > (mFs/2.0))) { 
         mFilterMode = BYPASS_MODE;
+        LogMessage("Lowpass filters settings are in error, 0 < Fhc < Fs/2", "e");
+        LogMessage(" Flc = " + mF1 + ", Fs/2 = " + (mFs/2.0), "e");
       } else { 
         mFilterMode = LPF_MODE;
       }
@@ -160,6 +165,8 @@ implements Component {
     } else if (mHighpassEnabled) { 
       mF1 = mFhc;
       if ((mF1 == 0.0) || (mF1 > (mFs/2.0))) { 
+        LogMessage("Highpass filters settings are in error, 0 < Fhc < Fs/2", "e");
+        LogMessage(" Fhc = " + mF1 + ", Fs/2 = " + (mFs/2.0), "e");
         mFilterMode = BYPASS_MODE;
       } else { 
         mFilterMode = HPF_MODE;
@@ -168,13 +175,21 @@ implements Component {
 
     // Configure the array sizes (and round up to number of stages)
     if (mFilterMode == BYPASS_MODE) { 
+      LogMessage("Setting up bypass mode", "i");
       return;
     } else if (mFilterMode == BPF_MODE) { 
       mNumStages = (mOrder + 3) / 4;
       mNumCoef = 4;
+      LogMessage("Setting up " + mNumStages*4 + "th order Bandpass Filter with Fs = " + mFs, "i");
+      LogMessage("Passband (" + mF1 + "," + mF2 + ")", "i");
     } else { 
       mNumStages = (mOrder + 1) / 2;
       mNumCoef = 2;
+      if (mFilterMode == LPF_MODE) { 
+        LogMessage("Setting up " + mNumStages*2 +"th order Lowpass Filter with Fs = " + mFs, "i");
+      } else {
+        LogMessage("Setting up " + mNumStages*2 +"th order Highpass Filter with Fs = " + mFs, "i");
+      }
     }
 
     // allocate new arrays
@@ -195,7 +210,7 @@ implements Component {
       for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
 
         r = Math.sin(Math.PI*(2.0*loop1+1.0)/(4.0*mNumStages));
-        s = a2 + 2.0*a*r + 1.0;
+        s = b2 + 2.0*b*r + 1.0;
 
         newGain[loop1] = b2/mFs;
         newCoef[loop1][0] = 4.0*a*(1.0+b*r)/s;
@@ -235,6 +250,16 @@ implements Component {
     gain = newGain;
     w = newState;
 
+  
+    // report filter
+    for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
+      LogMessage("gain(" + loop1 + ") = " + gain[loop1], "i");
+    }
+    for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
+      for (int loop2 = 0; loop2 < mNumCoef; loop2++) { 
+        LogMessage("coef(" + loop1 + "," + loop2 + ") = " + coef[loop1][loop2], "i");
+      }
+    }
   }
 
   // -----------------------------------------------
@@ -284,6 +309,7 @@ implements Component {
         w[loop1][loop2] = wSave[loop1][loop2];
       }
     }
+    LogMessage("Finished filtering impulse response", "i");
 
     // Find maximum energy out
     double maxOut = 0.0;
@@ -294,6 +320,7 @@ implements Component {
         mFilterDelay = loop1;
       }
     }
+    LogMessage("Filter delay is " + mFilterDelay + " samples", "i");
 
     // ---------------------------------------
     //  This runs impulse respone through FFT
@@ -308,14 +335,16 @@ implements Component {
       while (( 1 << NfftExp) < Nfft) {
         NfftExp++;
       }
+      LogMessage("Running 2^" + NfftExp + "-pt FFT analysis", "i");
     
       // Run the FFT, and sub-sample response
       int index;
       double [] Hreal = new double[Nfft];
       double [] Himag = new double[Nfft];
       // first get to Bit-reverse addressing input data
-      for (int loop1 = 0; loop1 < NfftExp; loop1++) { 
-        index = Integer.reverse(loop1) >> (32 - NfftExp); 
+      for (int loop1 = 0; loop1 < Nfft; loop1++) { 
+        index = (Integer.reverse(loop1) >> (32 - NfftExp)) & (Nfft-1); 
+        //LogMessage("Input index = " + loop1 + ", BRO index = " + index,"i");
         Hreal[loop1] = filterOut[index];
         Himag[loop1] = 0.0;
       }
@@ -324,6 +353,7 @@ implements Component {
       int currentN;
       double []xReal = new double[2];
       double []xImag = new double[2];
+      double twiddleAngle;
   
       // Run Radix2 FFT loops - could be improve (radix4, etc, real-only version (packed complex at Nfft/2)
       for (int loop1 = 0; loop1 < NfftExp; loop1++) { 
@@ -331,13 +361,17 @@ implements Component {
         for (int loop2 = 0; loop2 < (Nfft/currentN); loop2++) { 
           for (int loop3 = 0; loop3 < spacing; loop3++) { 
             index = loop2*currentN + loop3;
+            twiddleAngle = 2.0*Math.PI*(double)loop3 / (double)currentN;
+            //LogMessage("Running FFT (" + loop1 + "," + loop2 + "," + loop3 + ") on [" + index + "," + (index+spacing) + "]", "i");
+            //LogMessage("Twiddle Factor = " + Math.cos(twiddleAngle) + " +j " + Math.sin(twiddleAngle), "i");
+
             xReal[0] = Hreal[index];
             xImag[0] = Himag[index];
             // apply twiddle factors
-            xReal[1] = Hreal[index+spacing] * Math.cos(2*Math.PI*(double)(loop3/currentN))
-                        - Himag[index+spacing] * Math.sin(2*Math.PI*(double)(loop3/currentN));
-            xImag[1] = Hreal[index+spacing] * Math.sin(2*Math.PI*(double)(loop3/currentN))
-                        + Himag[index+spacing] * Math.cos(2*Math.PI*(double)(loop3/currentN));
+            xReal[1] = Hreal[index+spacing] * Math.cos(twiddleAngle)
+                     - Himag[index+spacing] * Math.sin(twiddleAngle);
+            xImag[1] = Hreal[index+spacing] * Math.sin(twiddleAngle)
+                     + Himag[index+spacing] * Math.cos(twiddleAngle);
     
             // DIT matrix
             Hreal[index] = xReal[0] + xReal[1];
@@ -346,23 +380,29 @@ implements Component {
             Himag[index+spacing] = xImag[0] - xImag[1];
           }
         }
+        spacing *= 2;
       }
   
       // Convert filter response to Filter magnitude in dB
-      double dcValue, tmp1;
-      dcValue = 0.0;
+      double maxValue, tmp1;
+      maxValue = 0.0;
       LogMessage("Calculating filter response from [0,pi)", "i");
       for (int loop1 = 0; loop1 < Nfft/2; loop1++) { 
         tmp1 = Math.pow(Hreal[loop1],2) + Math.pow(Himag[loop1],2);
-        tmp1 = 10.0*Math.log10(tmp1); 
-        if (loop1 == 0) { 
-          dcValue = tmp1;
+        if (tmp1 == 0.0) { 
+          tmp1 = -250;
+        } else { 
+          tmp1 = 10.0*Math.log10(tmp1); 
         }
-        mFilterResponse[loop1] = tmp1 - dcValue;
-  
+        if (tmp1 > maxValue) { 
+          maxValue = tmp1;
+        }
+        mFilterResponse[loop1] = tmp1;
+      }
+      for (int loop1 = 0; loop1 < Nfft/2; loop1++) { 
+        mFilterResponse[loop1] = mFilterResponse[loop1] - maxValue;
         double ratio = (double)loop1 / (double)(Nfft/2);
         LogMessage("  H(" + ratio + ") = " + mFilterResponse[loop1] + " dB", "i");
-  
       }
     }
 
@@ -374,15 +414,15 @@ implements Component {
   public void resetFilter() { 
     LogMessage("Reseting the filter", "i");
     // clear the internal state
-    for (int loop1 = 0; loop1 < mOrder; loop1++) { 
-      for (int loop2 = 0; loop2 < mNumCoef; loop1++) { 
+    for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
+      for (int loop2 = 0; loop2 < mNumCoef; loop2++) { 
         w[loop1][loop2] = 0.0; 
       }
     }
   }
 
   public double applyFilter(double inValue) { 
-    LogMessage("Applying filter", "i");
+//    LogMessage("Applying filter on " + inValue, "i");
     double outValue;
     double x;
     double w0;
@@ -400,7 +440,7 @@ implements Component {
       for (int loop1 = 0; loop1 < mNumStages; loop1++) { 
 
         // run the filter
-        w0 = 0.0;
+        w0 = x;
         for (int loop2 = 0; loop2 < mNumCoef; loop2++) { 
            w0 += coef[loop1][loop2] * w[loop1][loop2];
         }
@@ -427,6 +467,7 @@ implements Component {
 
     }
 
+ //   LogMessage("Filtered value = " + outValue, "i");
     return outValue;
 
   }
@@ -469,17 +510,20 @@ implements Component {
 
   /** Sets high pass cutoff Frequency */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_NON_NEGATIVE_FLOAT,
-                    defaultValue = 0.35 + "")
+                    defaultValue = 0.20 + "")
   @SimpleProperty(description = "Sets the High pass cutoff frequency in Hz.", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
   public void HighpassFreq(float mFhcVal) {
-    mFhc = mFhcVal;
+    if (mFhcVal != mFhc) { 
+      mFhc = mFhcVal;
+      calcFilterResponse();
+    }
   }
 
   /** Sets Low pass cutoff Frequency */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_NON_NEGATIVE_FLOAT,
-                    defaultValue = 0.25 + "")
+                    defaultValue = 0.30 + "")
   @SimpleProperty(description = "Sets the Low pass cutoff frequency in Hz.", 
                   category = PropertyCategory.BEHAVIOR,
                   userVisible = true)
@@ -569,6 +613,7 @@ implements Component {
     while (Nfft < numValues) { 
       Nfft = Nfft*2;
     }
+    Nfft = Nfft * 2;
 
     // Analyze the filter
     analyzeFilter(Nfft, true);
