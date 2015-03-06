@@ -4,7 +4,11 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 //
-
+// -- The Butterworth filter math was derived from this site:
+//     www.extstrom.com/journal/sigproc
+//    The filter math released under GNU GPL version 2 or later
+// 
+//
 package com.google.appinventor.components.runtime;
 
 import android.app.Activity;
@@ -385,7 +389,7 @@ implements Component {
   
       // Convert filter response to Filter magnitude in dB
       double maxValue, tmp1;
-      maxValue = 0.0;
+      maxValue = -250.0;
       LogMessage("Calculating filter response from [0,pi)", "i");
       for (int loop1 = 0; loop1 < Nfft/2; loop1++) { 
         tmp1 = Math.pow(Hreal[loop1],2) + Math.pow(Himag[loop1],2);
