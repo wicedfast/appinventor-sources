@@ -217,9 +217,6 @@ public class EventDispatcher {
     // event.  This should only be true for one (or zero) of the closures.
     boolean dispatched = false;
     for (EventClosure eventClosure : eventClosures) {
-      // debug for Event Launch for WICED - this dispathEvent never returns
-      Log.i("EventDispatcher", "Looping through eventClosures " + eventClosure.componentId  
-            + " " + eventClosure.eventName);
       if (dispatchDelegate.dispatchEvent(component,
                                          eventClosure.componentId,
                                          eventClosure.eventName,
@@ -231,8 +228,6 @@ public class EventDispatcher {
         dispatched = true;  // break here or keep iterating through loop?
       }
     }
-    // WICED events never get here
-    Log.i("EventDispatcher", "delegateDispatchEvent = " + dispatched);
     return dispatched;
   }
 

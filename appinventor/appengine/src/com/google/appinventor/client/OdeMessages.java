@@ -4750,7 +4750,7 @@ public interface OdeMessages extends Messages {
 
   @DefaultMessage("Tweet")
   @Description("")
-  String TweetMethods(); 
+  String TweetMethods();
 
   @DefaultMessage("TweetWithImage")
   @Description("")
@@ -4792,10 +4792,6 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("DeviceServices")
   @Description("")
   String DeviceServicesProperties();
-
-  @DefaultMessage("BatteryLevel")
-  @Description("")
-  String BatteryLevelProperties();
 
   @DefaultMessage("SensorsEnabled")
   @Description("")
@@ -4893,6 +4889,44 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("FilterDelay")
   @Description("")
   String FilterDelayProperties();
+
+  // Methods for Bluetooth Low Energy Components
+
+  @DefaultMessage("Filter")
+  @Description("")
+  String FilterMethods();
+
+  @DefaultMessage("FilterResponse")
+  @Description("")
+  String FilterResponseMethods();
+
+  @DefaultMessage("ConnectClosest")
+  @Description("")
+  String ConnectClosestMethods();
+
+  @DefaultMessage("ReadBatteryLevel")
+  @Description("")
+  String ReadBatteryLevelMethods();
+
+  @DefaultMessage("BatteryLevel")
+  @Description("")
+  String BatteryLevelProperties();
+
+  @DefaultMessage("ReadRSSI")
+  @Description("")
+  String ReadRSSIMethods();
+
+  @DefaultMessage("ResetTimestamp")
+  @Description("")
+  String ResetTimestampMethods();
+
+  @DefaultMessage("startLeScan")
+  @Description("")
+  String startLeScanMethods();
+
+  @DefaultMessage("stopLeScan")
+  @Description("")
+  String stopLeScanMethods();
 
   //Mock Components
   @DefaultMessage("add items...")

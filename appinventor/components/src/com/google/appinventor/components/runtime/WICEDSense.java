@@ -1,9 +1,9 @@
 // -*- mode: java; c-basic-offset: 2; -*-
-//
+// Copyright 2009-2011 Google, All Rights reserved
+// Copyright 2011-2012 MIT, All rights reserved
 // Copyright 2014 - David Garrett - Broadcom Corporation
+// Released under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
-//
-//
 
 package com.google.appinventor.components.runtime;
 
@@ -34,10 +34,12 @@ import com.google.appinventor.components.annotations.UsesPermissions;
 import com.google.appinventor.components.common.ComponentCategory;
 import com.google.appinventor.components.common.PropertyTypeConstants;
 import com.google.appinventor.components.common.YaVersion;
-import com.google.appinventor.components.runtime.util.SdkLevel;
 import com.google.appinventor.components.runtime.util.ErrorMessages;
+import com.google.appinventor.components.runtime.util.SdkLevel;
+import com.google.appinventor.components.runtime.util.YailList;
 import com.google.appinventor.components.runtime.EventDispatcher;
 
+import android.os.Handler;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -51,24 +53,24 @@ import java.util.UUID;
  * @author  David Garrett (not the violionist)
  */
 @DesignerComponent(version = YaVersion.WICEDSENSE_COMPONENT_VERSION,
-    //category = ComponentCategory.CONNECTIVITY,
-    category = ComponentCategory.WICED,
-    description = "The WICEDSense component is still experimental",
-    nonVisible = true,
-    iconName = "images/wicedSenseIcon.png")
+  //category = ComponentCategory.CONNECTIVITY,
+  category = ComponentCategory.SENSORS,
+  description = "The WICEDSense component is still experimental",
+  nonVisible = true,
+  iconName = "images/wicedSenseIcon.png")
 @SimpleObject
-@UsesPermissions(permissionNames = 
-                 "android.permission.BLUETOOTH, " + 
-                 "android.permission.BLUETOOTH_ADMIN")
-public final class WICEDSense extends AndroidNonvisibleComponent 
-implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deleteable {
+@UsesPermissions(permissionNames =
+  "android.permission.BLUETOOTH, " +
+  "android.permission.BLUETOOTH_ADMIN")
+public final class WICEDSense extends AndroidNonvisibleComponent
+  implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deleteable {
 
   private static final String LOG_TAG = "WICEDSense";
   private final Activity activity;
 
   // if constructor finds enabled BTLE device, this is set
   private boolean isEnabled = false;
-  
+
   // Start with no scan
   private boolean scanning = false;
 
@@ -82,13 +84,13 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   // holds the BT device
   private int deviceRssi = -130;
   private BluetoothDevice mDevice;
-  
+
   // Holds list of devices
   private ArrayList<DeviceScanRecord> mScannedDevices;
-  
+
   // holds sensors data
   private boolean mSensorsEnabled = false;
-  
+
   // Gatt client pointer
   private BluetoothGatt mBluetoothGatt = null;
 
@@ -129,8 +131,8 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   // set default temperature setting
   private boolean mUseFahrenheit = true;
-  private boolean mRunInBackground = true;
-  
+  private boolean mRunInBackground = false;
+
   // Defines BTLE States
   private static final int STATE_DISCONNECTED = 0;
   private static final int STATE_NEED_SERVICES = 1;
@@ -138,16 +140,18 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   /** Descriptor used to enable/disable notifications/indications */
   private static final UUID CLIENT_CONFIG_UUID = UUID
-          .fromString("00002902-0000-1000-8000-00805f9b34fb");
+    .fromString("00002902-0000-1000-8000-00805f9b34fb");
   private static final UUID SENSOR_SERVICE_UUID = UUID
-          .fromString("739298B6-87B6-4984-A5DC-BDC18B068985");
+    .fromString("739298B6-87B6-4984-A5DC-BDC18B068985");
   private static final UUID SENSOR_NOTIFICATION_UUID = UUID
-          .fromString("33EF9113-3B55-413E-B553-FEA1EAADA459");
+    .fromString("33EF9113-3B55-413E-B553-FEA1EAADA459");
   private static final UUID BATTERY_SERVICE_UUID = UUID
-          .fromString("0000180F-0000-1000-8000-00805f9b34fb");
+    .fromString("0000180F-0000-1000-8000-00805f9b34fb");
   private static final UUID BATTERY_LEVEL_UUID = UUID
-          .fromString("00002a19-0000-1000-8000-00805f9b34fb");
+    .fromString("00002a19-0000-1000-8000-00805f9b34fb");
 
+  // Used to post events to the UI Thread
+  private final Handler androidUIHandler;
 
   /**
    * Creates a new WICEDSense component.
@@ -157,6 +161,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   public WICEDSense (ComponentContainer container) {
     super(container.$form());
     activity = container.$context();
+    androidUIHandler = new Handler();
 
     // names the function
     String functionName = "WICEDSense";
@@ -173,24 +178,24 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     mGattServices = new ArrayList<BluetoothGattService>();
 
     /* Setup the Bluetooth adapter */
-    if (SdkLevel.getLevel() < SdkLevel.LEVEL_JELLYBEAN_MR2) { 
+    if (SdkLevel.getLevel() < SdkLevel.LEVEL_JELLYBEAN_MR2) {
       bluetoothAdapter = null;
       /** issues message to reader */
       form.dispatchErrorOccurredEvent(this, functionName,
-          ErrorMessages.ERROR_BLUETOOTH_LE_NOT_SUPPORTED);
-    } else { 
+        ErrorMessages.ERROR_BLUETOOTH_LE_NOT_SUPPORTED);
+    } else {
       bluetoothAdapter = newBluetoothAdapter(activity);
     }
 
-    if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) { 
+    if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
       isEnabled = false;
       LogMessage("No Valid BTLE Device on platform", "e");
 
       /** issues message to reader */
       form.dispatchErrorOccurredEvent(this, "WICEDSense",
-          ErrorMessages.ERROR_BLUETOOTH_NOT_ENABLED);
+        ErrorMessages.ERROR_BLUETOOTH_NOT_ENABLED);
 
-    } else { 
+    } else {
       isEnabled = true;
       LogMessage("Found the BTLE Device on platform", "i");
     }
@@ -204,29 +209,29 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   }
   /** Get Device name */
-  private String GetDeviceNameAndAddress(BluetoothDevice nextDevice) { 
+  private String GetDeviceNameAndAddress(BluetoothDevice nextDevice) {
     String mName;
-    if (nextDevice != null) { 
+    if (nextDevice != null) {
       mName = nextDevice.getName() + ":" + nextDevice.toString();
-    } else { 
-      mName = "Null device"; 
+    } else {
+      mName = "Null device";
     }
     return mName;
   }
 
   /** Log Messages */
-  private void LogMessage(String message, String level) { 
-    if (mLogEnabled) { 
+  private void LogMessage(String message, String level) {
+    if (mLogEnabled) {
       mLogMessage = message;
       String errorLevel = "e";
       String warningLevel = "w";
-  
+
       // push to appropriate logging
       if (level.equals(errorLevel)) {
         Log.e(LOG_TAG, message);
       } else if (level.equals(warningLevel)) {
         Log.w(LOG_TAG, message);
-      } else { 
+      } else {
         Log.i(LOG_TAG, message);
       }
     }
@@ -234,7 +239,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
 
   /** Log Messages */
-  private void CleanupBTLEState() { 
+  private void CleanupBTLEState() {
 
     mConnectionState = STATE_DISCONNECTED;
 
@@ -256,56 +261,56 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    */
 
   /* Create Device list from scan */
-  public class DeviceScanRecord implements Comparable<DeviceScanRecord> { 
+  public class DeviceScanRecord implements Comparable<DeviceScanRecord> {
     private BluetoothDevice device = null;
     private int rssi = 0;
     private byte[] scanRecord = null;
-      
-    public DeviceScanRecord() { 
+
+    public DeviceScanRecord() {
       device = null;
       rssi = 0;
       scanRecord = null;
     }
-    
+
     // set the container to scan results
     public void setRecord(final BluetoothDevice deviceVal, int rssiVal, byte[] scanRecordVal) {
       this.device = deviceVal;
       this.rssi = rssiVal;
 
       this.scanRecord = new byte[scanRecordVal.length];
-      for (int loop1 = 0; loop1 < scanRecordVal.length; loop1++) { 
+      for (int loop1 = 0; loop1 < scanRecordVal.length; loop1++) {
         this.scanRecord[loop1] = scanRecordVal[loop1];
       }
     }
 
     // get the RSSI
-    public int getRssi() { 
+    public int getRssi() {
       return rssi;
     }
     // get the device handle
-    public BluetoothDevice getDevice() { 
+    public BluetoothDevice getDevice() {
       return device;
     }
     // returns the scan record data
-    public String getScanRecord() { 
+    public String getScanRecord() {
       return bytesToHex(scanRecord);
     }
-   
-    public int compareTo(DeviceScanRecord compareScan) { 
+
+    public int compareTo(DeviceScanRecord compareScan) {
       return compareScan.getRssi() - this.rssi;
     }
   }
 
   // Set the sensor state
-  public void setSensorState() { 
+  public void setSensorState() {
 
-    // Fire off characteristic 
-    if (validWICEDDevice) { 
+    // Fire off characteristic
+    if (validWICEDDevice) {
 
       // Write the characteristic
-      if (mSensorNotification == null) { 
+      if (mSensorNotification == null) {
         LogMessage("Trying to set sensors notification with null pointer", "e");
-      } else { 
+      } else {
         BluetoothGattDescriptor mSensorNotificationClientConfig;
 
         // Update descriptor client config
@@ -316,17 +321,17 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
         }
 
         // set values in the descriptor
-        if (mSensorsEnabled) { 
+        if (mSensorsEnabled) {
           mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        } else { 
+        } else {
           mSensorNotificationClientConfig.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
         }
 
         // write the gatt descriptor
-        mBluetoothGatt.writeDescriptor(mSensorNotificationClientConfig); 
-        if (mSensorsEnabled) { 
+        mBluetoothGatt.writeDescriptor(mSensorNotificationClientConfig);
+        if (mSensorsEnabled) {
           LogMessage("Turning on Sensor notifications", "i");
-        } else { 
+        } else {
           LogMessage("Turning off Sensor notifications", "i");
         }
       }
@@ -337,44 +342,46 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   /** create adaptor */
   public static BluetoothAdapter newBluetoothAdapter(Context context) {
-    final BluetoothManager bluetoothManager = 
+    final BluetoothManager bluetoothManager =
       (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
-    return bluetoothManager.getAdapter();  
+    return bluetoothManager.getAdapter();
   }
 
   /** Device scan callback. */
   private LeScanCallback mLeScanCallback = new LeScanCallback() {
-    @Override
-    public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
+      @Override
+      public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
 
-      // Add new device
-      DeviceScanRecord newDevice = new DeviceScanRecord();
-      boolean foundNewDevice = true;
-  
-      // get the device record
-      newDevice.setRecord(device, rssi, scanRecord);
+        // Add new device
+        DeviceScanRecord newDevice = new DeviceScanRecord();
+        boolean foundNewDevice = true;
 
-      // make sure to ignore null devices
-      if (device != null) { 
-  
-        // Search through found devices and find matching one
-        for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
-          DeviceScanRecord prevDevice;
-  
-          // see if we already know about this device
-          prevDevice = mScannedDevices.get(loop1); 
-          if (device.equals(prevDevice.getDevice())) { 
-            foundNewDevice = false;
+        // get the device record
+        newDevice.setRecord(device, rssi, scanRecord);
+
+        // make sure to ignore null devices
+        if (device != null) {
+
+          // Search through found devices and find matching one
+          for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
+            DeviceScanRecord prevDevice;
+
+            // see if we already know about this device
+            prevDevice = mScannedDevices.get(loop1);
+            if (device.equals(prevDevice.getDevice())) {
+              foundNewDevice = false;
+            }
+          }
+          if (foundNewDevice) {
+            mScannedDevices.add(newDevice);
+            LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " with rssi = " + rssi + " dBm to scan list", "i");
+            // Trigger Event
+            FoundDevice(AddressesAndNames());
           }
         }
-        if (foundNewDevice) {
-          mScannedDevices.add(newDevice);
-          LogMessage("Adding a BTLE device " + GetDeviceNameAndAddress(device) + " with rssi = " + rssi + " dBm to scan list", "i");
-        }
-      }
 
-    }
-  };
+      }
+    };
 
   /** Get Sensor Message in HEX */
   final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
@@ -390,205 +397,204 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
 
   /** Various callback methods defined by the BLE API. */
   private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-          LogMessage("onConnectionStateChange callback with status = " + status, "i");
+      @Override
+      public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+        LogMessage("onConnectionStateChange callback with status = " + status, "i");
 
-          //String intentAction;
-          if (newState == BluetoothProfile.STATE_CONNECTED) {
-            mConnectionState = STATE_NEED_SERVICES;
+        //String intentAction;
+        if (newState == BluetoothProfile.STATE_CONNECTED) {
+          mConnectionState = STATE_NEED_SERVICES;
 
-            // Trigger device discovery 
-            LogMessage("Connected to BLTE device, starting service discovery", "i");
-            boolean success = mBluetoothGatt.discoverServices();
-            if (!success) { 
-              LogMessage("Cannot start service discovery for some reason", "e");
-            }
+          // Trigger device discovery
+          LogMessage("Connected to BLTE device, starting service discovery", "i");
+          boolean success = mBluetoothGatt.discoverServices();
+          if (!success) {
+            LogMessage("Cannot start service discovery for some reason", "e");
+          }
           // Finalizing the disconnect profile
-          } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-             mConnectionState = STATE_DISCONNECTED;
+        } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+          mConnectionState = STATE_DISCONNECTED;
 
-             // close out connection
+          // close out connection
 //             mBluetoothGatt.close();
 
-             // null out services
-             mSensorService = null;
-             mSensorNotification = null;
-             mBatteryService = null;
-             mBatteryCharacteristic = null;
-             mGattServices.clear();
+          // null out services
+          mSensorService = null;
+          mSensorNotification = null;
+          mBatteryService = null;
+          mBatteryCharacteristic = null;
+          mGattServices.clear();
 
-             LogMessage("Disconnected from BLTE device", "i");
+          LogMessage("Disconnected from BLTE device", "i");
+        }
+      }
+
+      @Override
+      // New services discovered
+      public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+        LogMessage("onReadRemoteRssi callback with status = " + status, "i");
+
+        deviceRssi = rssi;
+        LogMessage("Updating RSSI from remove device = " + rssi + " dBm", "i");
+
+        // update RSSI
+        //RSSIUpdated();
+      }
+
+      @Override
+      // New services discovered
+      public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+
+        LogMessage("onServicesDiscovered callback with status = " + status, "i");
+
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+          // record services
+          mGattServices = gatt.getServices();
+          validWICEDDevice = true;
+
+          // update connection state
+          if (mConnectionState == STATE_NEED_SERVICES) {
+            mConnectionState = STATE_CONNECTED;
           }
-        }
 
-        @Override
-        // New services discovered
-        public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
-          LogMessage("onReadRemoteRssi callback with status = " + status, "i");
+          // log message
+          LogMessage("Found " + mGattServices.size() + " Device services", "i");
 
-          deviceRssi = rssi;
-          LogMessage("Updating RSSI from remove device = " + rssi + " dBm", "i");
-
-          // update RSSI
-          //RSSIUpdated();
-        }
-        
-        @Override
-        // New services discovered
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-
-          LogMessage("onServicesDiscovered callback with status = " + status, "i");
-  
-          if (status == BluetoothGatt.GATT_SUCCESS) {
-            // record services 
-            mGattServices = gatt.getServices();
-            validWICEDDevice = true;
-
-            // update connection state
-            if (mConnectionState == STATE_NEED_SERVICES) { 
-              mConnectionState = STATE_CONNECTED;
+          // Match to sensor services
+          BluetoothGattService mService;
+          for (int loop1 = 0; loop1 < mGattServices.size(); loop1++) {
+            mService = mGattServices.get(loop1);
+            // get battery service
+            if (BATTERY_SERVICE_UUID.equals(mService.getUuid())) {
+              mBatteryService = mService;
+              mBatteryCharacteristic = mBatteryService.getCharacteristic(BATTERY_LEVEL_UUID);
             }
-  
-            // log message
-            LogMessage("Found " + mGattServices.size() + " Device services", "i");
-
-            // Match to sensor services
-            BluetoothGattService mService;
-            for (int loop1 = 0; loop1 < mGattServices.size(); loop1++) {
-              mService = mGattServices.get(loop1);
-              // get battery service
-              if (BATTERY_SERVICE_UUID.equals(mService.getUuid())) { 
-                mBatteryService = mService;
-                mBatteryCharacteristic = mBatteryService.getCharacteristic(BATTERY_LEVEL_UUID);
-              } 
-              // get the sensor service
-              if (SENSOR_SERVICE_UUID.equals(mService.getUuid())) { 
-                mSensorService = mService;
-                mSensorNotification = mSensorService.getCharacteristic(SENSOR_NOTIFICATION_UUID);
-              } 
+            // get the sensor service
+            if (SENSOR_SERVICE_UUID.equals(mService.getUuid())) {
+              mSensorService = mService;
+              mSensorNotification = mSensorService.getCharacteristic(SENSOR_NOTIFICATION_UUID);
             }
+          }
 
-            // Check for VALID WICED service
-            validWICEDDevice = true;
-            if (mBatteryService == null) { validWICEDDevice = false; }
-            if (mBatteryCharacteristic == null) { validWICEDDevice = false; }
-            if (mSensorService == null) { validWICEDDevice = false; }
-            if (mSensorNotification == null) { validWICEDDevice = false; }
+          // Check for VALID WICED service
+          validWICEDDevice = true;
+          if (mBatteryService == null) { validWICEDDevice = false; }
+          if (mBatteryCharacteristic == null) { validWICEDDevice = false; }
+          if (mSensorService == null) { validWICEDDevice = false; }
+          if (mSensorNotification == null) { validWICEDDevice = false; }
 
-            // Warnings if not valid
-            if (validWICEDDevice) { 
-              LogMessage("Found services on WICED Sense device", "i");
-            } else { 
-              LogMessage("Connected device is not a WICED Sense kit", "e");
-            }
-
-            // Set the sensor state directly
-            setSensorState();
-
-            // Triggers callback for connected device
-            //Connected();
+          // Warnings if not valid
+          if (validWICEDDevice) {
+            LogMessage("Found services on WICED Sense device", "i");
           } else {
-            LogMessage("onServicesDiscovered received but failed", "e");
-          }
-        }
-
-        @Override
-        // Result of a characteristic read operation
-        public void onCharacteristicRead(BluetoothGatt gatt, 
-                                         BluetoothGattCharacteristic characteristic, 
-                                         int status) {
-          if (status == BluetoothGatt.GATT_SUCCESS) {
-            if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
-              try {
-                mBatteryLevel = characteristic.getIntValue(
-                               BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                LogMessage("Read battery level " + mBatteryLevel + "%", "i");
-
-                // trigger event
-                //BatteryLevelUpdated();
-              } catch (Exception e) {
-                LogMessage("Unable to read battery level.", "e");
-                return;
-              }
-            }
-          } else {
-            LogMessage("Failure in reading Gatt Characteristics", "e");
-          }
-        }
-
-        @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-
-          LogMessage("onDescriptorWrite with status = " + status, "i");
-          if (mSensorNotification == null) {
-            LogMessage("onDescriptorWrite: mSensorNotification == null", "e");
-            return;
+            LogMessage("Connected device is not a WICED Sense kit", "e");
           }
 
-          // set the enable value
-          boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
-          if (success) {
-            LogMessage("Was able to write sensor notification characteristics", "i");
-          } else { 
-            LogMessage("Failed to write sensor notification characteristic", "e");
-           }
+          // Set the sensor state directly
+          setSensorState();
+
+          // Triggers callback for connected device
+          //Connected();
+        } else {
+          LogMessage("onServicesDiscovered received but failed", "e");
         }
+      }
 
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt,
-                         BluetoothGattCharacteristic characteristic) {
-          if (SENSOR_NOTIFICATION_UUID.equals(characteristic.getUuid())) {
-            byte[] value = characteristic.getValue();
-            int bitMask = value[0];
-            int index = 1;
-
-            // Update timestamp
-            currentTime = System.nanoTime();
-
-            if ((bitMask & 0x1)>0) { 
-              mXAccel = (value[index+1] << 8) + (value[  index] & 0xFF);
-              mYAccel = (value[index+3] << 8) + (value[index+2] & 0xFF);
-              mZAccel = (value[index+5] << 8) + (value[index+4] & 0xFF);
-              index = index + 6;
+      @Override
+      // Result of a characteristic read operation
+      public void onCharacteristicRead(BluetoothGatt gatt,
+        BluetoothGattCharacteristic characteristic,
+        int status) {
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+          if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
+            try {
+              mBatteryLevel = characteristic.getIntValue(
+                BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+              LogMessage("Read battery level " + mBatteryLevel + "%", "i");
+              // Trigger Event
+              BatteryLevelUpdated(mBatteryLevel);
+            } catch (Exception e) {
+              LogMessage("Unable to read battery level.", "e");
+              return;
             }
-            if ((bitMask & 0x2)>0) { 
-              mXGyro = (value[index+1] << 8) + (value[  index] & 0xFF);
-              mYGyro = (value[index+3] << 8) + (value[index+2] & 0xFF);
-              mZGyro = (value[index+5] << 8) + (value[index+4] & 0xFF);
-              mXGyro = mXGyro / (float)100.0;
-              mYGyro = mYGyro / (float)100.0;
-              mZGyro = mZGyro / (float)100.0;
-              index = index + 6;
-            }
-            if ((bitMask & 0x4)>0) { 
-              mHumidity =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
-              mHumidity = mHumidity / (float)10.0;
-              index = index + 2;
-            }
-            if ((bitMask & 0x8)>0) { 
-              mXMagnetometer = (value[index+1] << 8) + (value[  index] & 0xFF);
-              mYMagnetometer = (value[index+3] << 8) + (value[index+2] & 0xFF);
-              mZMagnetometer = (value[index+5] << 8) + (value[index+4] & 0xFF);
-              index = index + 6;
-            }
-            if ((bitMask & 0x10)>0) { 
-              mPressure =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
-              mPressure = mPressure / (float)10.0;
-              index = index + 2;
-            }
-            if ((bitMask & 0x20)>0) { 
-              mTemperature =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
-              mTemperature = mTemperature / (float)10.0;
-              index = index + 2;
-              tempCurrentTime = System.nanoTime();
-            }
-
-            LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
-            //SensorsUpdated();
           }
+        } else {
+          LogMessage("Failure in reading Gatt Characteristics", "e");
         }
-   };
+      }
+
+      @Override
+      public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+
+        LogMessage("onDescriptorWrite with status = " + status, "i");
+        if (mSensorNotification == null) {
+          LogMessage("onDescriptorWrite: mSensorNotification == null", "e");
+          return;
+        }
+
+        // set the enable value
+        boolean success = mBluetoothGatt.setCharacteristicNotification(mSensorNotification, mSensorsEnabled);
+        if (success) {
+          LogMessage("Was able to write sensor notification characteristics", "i");
+        } else {
+          LogMessage("Failed to write sensor notification characteristic", "e");
+        }
+      }
+
+      @Override
+      public void onCharacteristicChanged(BluetoothGatt gatt,
+        BluetoothGattCharacteristic characteristic) {
+        if (SENSOR_NOTIFICATION_UUID.equals(characteristic.getUuid())) {
+          byte[] value = characteristic.getValue();
+          int bitMask = value[0];
+          int index = 1;
+
+          // Update timestamp
+          currentTime = System.nanoTime();
+
+          if ((bitMask & 0x1)>0) {
+            mXAccel = (value[index+1] << 8) + (value[  index] & 0xFF);
+            mYAccel = (value[index+3] << 8) + (value[index+2] & 0xFF);
+            mZAccel = (value[index+5] << 8) + (value[index+4] & 0xFF);
+            index = index + 6;
+          }
+          if ((bitMask & 0x2)>0) {
+            mXGyro = (value[index+1] << 8) + (value[  index] & 0xFF);
+            mYGyro = (value[index+3] << 8) + (value[index+2] & 0xFF);
+            mZGyro = (value[index+5] << 8) + (value[index+4] & 0xFF);
+            mXGyro = mXGyro / (float)100.0;
+            mYGyro = mYGyro / (float)100.0;
+            mZGyro = mZGyro / (float)100.0;
+            index = index + 6;
+          }
+          if ((bitMask & 0x4)>0) {
+            mHumidity =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+            mHumidity = mHumidity / (float)10.0;
+            index = index + 2;
+          }
+          if ((bitMask & 0x8)>0) {
+            mXMagnetometer = (value[index+1] << 8) + (value[  index] & 0xFF);
+            mYMagnetometer = (value[index+3] << 8) + (value[index+2] & 0xFF);
+            mZMagnetometer = (value[index+5] << 8) + (value[index+4] & 0xFF);
+            index = index + 6;
+          }
+          if ((bitMask & 0x10)>0) {
+            mPressure =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+            mPressure = mPressure / (float)10.0;
+            index = index + 2;
+          }
+          if ((bitMask & 0x20)>0) {
+            mTemperature =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+            mTemperature = mTemperature / (float)10.0;
+            index = index + 2;
+            tempCurrentTime = System.nanoTime();
+          }
+
+          LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
+          //SensorsUpdated();
+        }
+      }
+    };
 
 
   /* ----------------------------------------------------------------------
@@ -599,7 +605,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    */
 
   /*  ----------------------------------------------------------------------
-   *   Events 
+   *   Events
    *   ----------------------------------------------------------------------
    */
 
@@ -607,7 +613,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Callback for an Error Event
    */
 //  @SimpleEvent(description = "Event when there is an Error.")
-//  public void Error() { 
+//  public void Error() {
 //    LogMessage("Firing the Error()", "e");
 //    EventDispatcher.dispatchEvent(this, "Error");
 //  }
@@ -616,50 +622,57 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Callback for Found Device Event
    */
   @SimpleEvent(description = "Event when an LE Device is found in scan.")
-  public void FoundDevice() { 
+  public void FoundDevice(final YailList returnList) {
     LogMessage("Firing the FoundDevice() event", "i");
-    EventDispatcher.dispatchEvent(this, "FoundDevice");
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "FoundDevice", returnList);
+        }
+      });
   }
 
   /**
    * Callback for RSSI data
    */
-//  @SimpleEvent(description = "RSSI Read Event.")
-//  public void RSSIUpdated() { 
-//    boolean success;
-//    LogMessage("Firing the RSSIUpdated() event", "i");
-//    success = EventDispatcher.dispatchEvent(this, "RSSIUpdated");
-//    if (!success) { 
-//      LogMessage("Failed to dispatch RSSIUpdated() event", "e");
-//    } else { 
-//      LogMessage("Success in dispatching RSSIUpdated() event", "i");
-//    }
-//  }
- 
+  @SimpleEvent(description = "RSSI Read Event.")
+  public void RSSIUpdated() {
+    boolean success;
+    LogMessage("Firing the RSSIUpdated() event", "i");
+    success = EventDispatcher.dispatchEvent(this, "RSSIUpdated");
+    if (!success) {
+      LogMessage("Failed to dispatch RSSIUpdated() event", "e");
+    } else {
+      LogMessage("Success in dispatching RSSIUpdated() event", "i");
+    }
+  }
+
   /**
    * Callback events for device connection
    */
-//  @SimpleEvent(description = "BTLE Connection Event.")
-//  public void Connected() { 
-//    EventDispatcher.dispatchEvent(this, "Connected");
-//  }
-
+  @SimpleEvent(description = "BTLE Connection Event.")
+  public void Connected() {
+    EventDispatcher.dispatchEvent(this, "Connected");
+  }
 
   /**
    * Callback events for Sensor Update
    */
-//  @SimpleEvent(description = "Sensor data updated.")
-//  public void SensorsUpdated() { 
-//    EventDispatcher.dispatchEvent(this, "SensorsUpdated");
-//  }
+  @SimpleEvent(description = "Sensor data updated.")
+  public void SensorsUpdated() {
+    EventDispatcher.dispatchEvent(this, "SensorsUpdated");
+  }
 
   /**
-   * Callback events for batery levels
+   * Callback events for battery levels
    */
-//  @SimpleEvent(description = "Received Battery Level.")
-//  public void BatteryLevelUpdated() { 
-//    EventDispatcher.dispatchEvent(this, "BatteryLevelUpdated");
-//  }
+  @SimpleEvent(description = "Received Battery Level.")
+  public void BatteryLevelUpdated(final int BatteryLevel) {
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "BatteryLevelUpdated", BatteryLevel);
+        }
+      });
+  }
 
   /**  ----------------------------------------------------------------------
    *   Function calls
@@ -670,24 +683,24 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows the user to check battery level
    */
   @SimpleFunction(description = "Reads WICED Sense kit battery level.")
-  public void ReadBatteryLevel() { 
+  public void ReadBatteryLevel() {
     String functionName = "ReadBatteryLevel";
-    if (mConnectionState == STATE_CONNECTED) { 
-      if (validWICEDDevice) { 
-        if (mBatteryCharacteristic == null) { 
+    if (mConnectionState == STATE_CONNECTED) {
+      if (validWICEDDevice) {
+        if (mBatteryCharacteristic == null) {
           LogMessage("Reading null battery characteristic", "e");
-        } else { 
+        } else {
           boolean success = mBluetoothGatt.readCharacteristic(mBatteryCharacteristic);
-          if (success) { 
+          if (success) {
             LogMessage("Reading battery characteristic", "i");
-          } else { 
+          } else {
             LogMessage("Reading battery characteristic failed", "e");
           }
         }
-      } else { 
+      } else {
         LogMessage("Trying to reading battery without a WICED Sense device", "e");
       }
-    } else { 
+    } else {
       LogMessage("Trying to reading battery before connected", "e");
     }
   }
@@ -696,19 +709,19 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows the user to start the scan
    */
   @SimpleFunction(description = "Starts BTLE scanning")
-  public void startLeScan() { 
+  public void startLeScan() {
     String functionName = "startLeScan";
-    
+
     // If not scanning, clear list rescan
-    if (!scanning) { 
+    if (!scanning) {
       mScannedDevices.clear();
       scanning = true;
 
       // Force the LE scan
-      try { 
+      try {
         bluetoothAdapter.startLeScan(mLeScanCallback);
         LogMessage("Starting LE scan", "i");
-      } catch (Exception e) { 
+      } catch (Exception e) {
         LogMessage("Failed to start LE scan", "e");
         scanning = false;
       }
@@ -719,24 +732,20 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows the user to Stop the scan
    */
   @SimpleFunction(description = "Stops BTLE scanning")
-  public void stopLeScan() { 
+  public void stopLeScan() {
     String functionName = "stopLeScan";
-    if (scanning) { 
-      try { 
+    if (scanning) {
+      try {
         bluetoothAdapter.stopLeScan(mLeScanCallback);
         scanning = false;
         LogMessage("Stopping LE scan with " + mScannedDevices.size() + " devices", "i");
 
-        // fire off event
-        if (mScannedDevices.size() > 0) { 
-    
+        if (mScannedDevices.size() > 0) {
           // Sort the list of devices by RSSI
           Collections.sort(mScannedDevices);
-
-          // Fire off the event
-          FoundDevice();
         }
-      } catch (Exception e) { 
+
+      } catch (Exception e) {
         LogMessage("Failed to stop LE scan", "e");
       }
     }
@@ -747,34 +756,26 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *   ----------------------------------------------------------------------
    */
 
-  /** Gets Battery Level */
-  @SimpleProperty(description = "Returns the battery level.", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public int BatteryLevel() {
-    return mBatteryLevel;
-  }
-
   /** Checks we have found services on the device */
-  @SimpleProperty(description = "Queries if Device Services have been discoverd", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public boolean FoundServices() {
-    if (mConnectionState == STATE_CONNECTED) { 
+  @SimpleProperty(description = "Queries if Device Services have been discoverd",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public boolean FoundServices() {
+    if (mConnectionState == STATE_CONNECTED) {
       return true;
-    } else { 
+    } else {
       return false;
     }
   }
 
   /** Makes sure GATT profile is connected */
-  @SimpleProperty(description = "Queries Connected state", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public boolean IsConnected() {
+  @SimpleProperty(description = "Queries Connected state",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public boolean IsConnected() {
     if (mConnectionState == STATE_CONNECTED) {
       return true;
-    } else { 
+    } else {
       return false;
     }
   }
@@ -782,22 +783,22 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /** Returns the RSSI measurement from devices
    *
    *  Instantly returns the rssi on WICEDsene class variable
-   *  but calls a Gatt callback that will update with the new 
+   *  but calls a Gatt callback that will update with the new
    *  values on the callback (later in time)
    *
    *  Should consider callback "EVENT" to get accurate value
    */
-  @SimpleProperty(description = "Queries RSSI", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public int RSSI() {
+  @SimpleProperty(description = "Queries RSSI",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public int RSSI() {
     return deviceRssi;
   }
 
   /**
    * Returns text log
    */
-//  @SimpleProperty(description = "Queries current log message", 
+//  @SimpleProperty(description = "Queries current log message",
 //                  category = PropertyCategory.BEHAVIOR,
 //                  userVisible = true)
 //  public String Text() {
@@ -808,11 +809,11 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows the user to Read remote RSSI
    */
   @SimpleFunction(description = "Forces read of remote RSSI")
-  public void ReadRSSI() { 
+  public void ReadRSSI() {
     String functionName = "ReadRSSI";
-    if (mConnectionState == STATE_CONNECTED) { 
+    if (mConnectionState == STATE_CONNECTED) {
       mBluetoothGatt.readRemoteRssi();
-    } else { 
+    } else {
       LogMessage("Trying to read RSSI without a connected device", "e");
     }
   }
@@ -821,13 +822,13 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows the user to disconnect
    */
   @SimpleFunction(description = "Disconnects GATT connection")
-  public void Disconnect() { 
+  public void Disconnect() {
     String functionName = "Disconnect";
 
     if (mConnectionState == STATE_CONNECTED || mConnectionState == STATE_NEED_SERVICES) {
       mBluetoothGatt.disconnect();
       LogMessage("Disconnecting from device", "i");
-    } else { 
+    } else {
       LogMessage("Trying to disconnect without a connected device", "e");
     }
   }
@@ -843,10 +844,10 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   }
 
   /**
-   * Allows to Connect to closest Device 
+   * Allows to Connect to closest Device
    */
   @SimpleFunction(description = "Connects to the WICED sense kit with the strongest RSSI")
-  public void ConnectClosest() { 
+  public void ConnectClosest() {
     String functionName = "ConnectClosest";
     DeviceScanRecord nextScannedDevice;
     String testname;
@@ -854,20 +855,20 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     int maxRssi = -160;
 
     // check connected state
-    if (mConnectionState == STATE_DISCONNECTED) { 
-  
+    if (mConnectionState == STATE_DISCONNECTED) {
+
       // log message
       LogMessage("Testing " + mScannedDevices.size() + " device(s) for closest scanned BTLE device", "i");
-  
+
       // Search through strings and find matching one
       for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
-  
+
         // get the next device
-        nextScannedDevice = mScannedDevices.get(loop1); 
+        nextScannedDevice = mScannedDevices.get(loop1);
         LogMessage("Testing device " + GetDeviceNameAndAddress(nextScannedDevice.getDevice()) + ", rssi = " + nextScannedDevice.getRssi() + " dBm", "i");
-  
+
         // update maximum value
-        if (nextScannedDevice.getRssi() > maxRssi) { 
+        if (nextScannedDevice.getRssi() > maxRssi) {
           maxRssi = nextScannedDevice.getRssi();
           // setup device name
           mDevice = nextScannedDevice.getDevice();
@@ -877,15 +878,15 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
           foundDevice = true;
         }
       }
-  
+
       // Found the best device to connect
       if (foundDevice) {
         mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
         LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
-      } else { 
+      } else {
         LogMessage("No device found to connect", "e");
       }
-    } else { 
+    } else {
       LogMessage("Trying to connect with an already connected device", "e");
     }
   }
@@ -894,36 +895,36 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows the Connect to Device
    */
   @SimpleFunction(description = "Connects to the named WICED Sense kit")
-  public void Connect(String name) { 
+  public void Connect(String name) {
     String functionName = "Connect";
     DeviceScanRecord nextScanRecord;
     BluetoothDevice tempDevice;
     String testname;
     boolean foundDevice = false;
 
-    if (mConnectionState == STATE_DISCONNECTED) { 
+    if (mConnectionState == STATE_DISCONNECTED) {
 
       // Search through strings and find matching one
       for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
         // recover next device in list
         tempDevice = mScannedDevices.get(loop1).getDevice();
         testname = GetDeviceNameAndAddress(tempDevice);
-    
+
         // check if this is the device
-        if (testname.equals(name)) { 
+        if (testname.equals(name)) {
           mDevice = tempDevice;
           foundDevice = true;
         }
       }
-  
+
       // Fire off the callback
-      if (foundDevice) { 
+      if (foundDevice) {
         mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
         LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
-      } else { 
+      } else {
         LogMessage("No device found to connect", "e");
       }
-    } else { 
+    } else {
       LogMessage("Trying to connect with an already connected device", "e");
     }
   }
@@ -932,22 +933,22 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Returns the time since reset in milliseconds
    *
    */
-  @SimpleProperty(description = "Returns timestamp of sensor data in milliseconds since reset", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public int Timestamp() {
+  @SimpleProperty(description = "Returns timestamp of sensor data in milliseconds since reset",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public int Timestamp() {
     long timeDiff;
     int timeMilliseconds;
 
     // compute nanoseconds since start time
     timeDiff = currentTime - startTime;
-    
+
     // Convert to milliseconds
     timeDiff = timeDiff / 1000000;
 
     // convert to int
     timeMilliseconds = (int)timeDiff;
-      
+
     return timeMilliseconds;
   }
 
@@ -955,22 +956,22 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Returns the time since reset in milliseconds
    *
    */
-  @SimpleProperty(description = "Returns timestamp of just temperature, humidity and pressure sensor data in milliseconds since reset", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public int TemperatureTimestamp() {
+  @SimpleProperty(description = "Returns timestamp of just temperature, humidity and pressure sensor data in milliseconds since reset",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public int TemperatureTimestamp() {
     long timeDiff;
     int timeMilliseconds;
 
     // compute nanoseconds since start time
     timeDiff = tempCurrentTime - startTime;
-    
+
     // Convert to milliseconds
     timeDiff = timeDiff / 1000000;
 
     // convert to int
     timeMilliseconds = (int)timeDiff;
-      
+
     return timeMilliseconds;
   }
 
@@ -979,11 +980,11 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
-                    defaultValue = "True")
-  @SimpleProperty(description = "Keeps BTLE running in background", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public void RunInBackground(boolean enableFlag) {
+    defaultValue = "True")
+    @SimpleProperty(description = "Keeps BTLE running in background",
+      category = PropertyCategory.BEHAVIOR,
+      userVisible = true)
+      public void RunInBackground(boolean enableFlag) {
     mRunInBackground = enableFlag;
   }
 
@@ -992,22 +993,22 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
-                    defaultValue = "True")
-  @SimpleProperty(description = "Sets temperature data in Fahrenheit, not Celius", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public void UseFahrenheit(boolean enableFlag) {
+    defaultValue = "True")
+    @SimpleProperty(description = "Sets temperature data in Fahrenheit, not Celius",
+      category = PropertyCategory.BEHAVIOR,
+      userVisible = true)
+      public void UseFahrenheit(boolean enableFlag) {
     mUseFahrenheit = enableFlag;
   }
-  
+
   /**
    * Sets the temperature setting for Fahrenheit or Celsius
    *
    */
-  @SimpleProperty(description = "Returns true if temperature format is in Fahrenheit", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public boolean UseFahrenheit() {
+  @SimpleProperty(description = "Returns true if temperature format is in Fahrenheit",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public boolean UseFahrenheit() {
     return mUseFahrenheit;
   }
 
@@ -1015,10 +1016,10 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Returns if Sensors are enabled
    *
    */
-  @SimpleProperty(description = "Returns true if Sensors are enabled", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public boolean SensorsEnabled() {
+  @SimpleProperty(description = "Returns true if Sensors are enabled",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public boolean SensorsEnabled() {
     return mSensorsEnabled;
   }
 
@@ -1027,14 +1028,14 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    */
   @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN,
-      defaultValue = "False")
-  @SimpleProperty(description = "Sets the sensor enabled flag", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public void SensorsEnabled(boolean enableFlag) {
+    defaultValue = "False")
+    @SimpleProperty(description = "Sets the sensor enabled flag",
+      category = PropertyCategory.BEHAVIOR,
+      userVisible = true)
+      public void SensorsEnabled(boolean enableFlag) {
 
     mSensorsEnabled = enableFlag;
-    if (enableFlag) { 
+    if (enableFlag) {
       LogMessage("Setting SensorsEnabled to true", "i");
     } else {
       LogMessage("Setting SensorsEnabled to false", "i");
@@ -1050,10 +1051,10 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    * @return scanning if still scanning
    */
-  @SimpleProperty(description = "Checks if BTLE device is scanning", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public boolean Scanning() {
+  @SimpleProperty(description = "Checks if BTLE device is scanning",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public boolean Scanning() {
     return scanning;
   }
 
@@ -1139,15 +1140,15 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     double mag = Math.sqrt(mXMagnetometer*mXMagnetometer + mYMagnetometer*mYMagnetometer);
     double heading;
 
-    LogMessage("Calculating heading from X+Y magnetometer data (" + 
-                mXMagnetometer + "," + mYMagnetometer + "), mag = " + mag, "i");
+    LogMessage("Calculating heading from X+Y magnetometer data (" +
+      mXMagnetometer + "," + mYMagnetometer + "), mag = " + mag, "i");
 
-    if (mag > 0.0) { 
+    if (mag > 0.0) {
       // convert x,y to radians to degrees
       double nX = mXMagnetometer/mag;
       double nY = mYMagnetometer/mag;
       heading = Math.atan2(nY, nX) * 57.295779578 + 180.0;
-    } else { 
+    } else {
       heading = 0.0;
     }
 
@@ -1158,38 +1159,38 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
   /**
    * Return the Humidity sensor data
    */
-  @SimpleProperty(description = "Get Humidity data in %", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public float Humidity() {
+  @SimpleProperty(description = "Get Humidity data in %",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public float Humidity() {
     return mHumidity;
   }
 
   /**
    * Return the Pressure sensor data
    */
-  @SimpleProperty(description = "Get Pressure data in millibar", 
-                  category = PropertyCategory.BEHAVIOR, 
-                  userVisible = true)
-  public float Pressure() {
+  @SimpleProperty(description = "Get Pressure data in millibar",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public float Pressure() {
     return mPressure;
   }
 
   /**
    * Return the Temperature sensor data
    */
-  @SimpleProperty(description = "Get Temperature data in Fahrenheit or Celsius", 
-                  category = PropertyCategory.BEHAVIOR, 
-                  userVisible = true)
-  public float Temperature() {
+  @SimpleProperty(description = "Get Temperature data in Fahrenheit or Celsius",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public float Temperature() {
     float tempConvert;
 
     // get temperature in celsius
     tempConvert = mTemperature;
 
     // Convert to Fahrenheit if selected
-    if (mUseFahrenheit) { 
-      tempConvert = tempConvert* (float)(9.0/5.0) + (float)32.0; 
+    if (mUseFahrenheit) {
+      tempConvert = tempConvert* (float)(9.0/5.0) + (float)32.0;
     }
 
     return tempConvert;
@@ -1200,10 +1201,10 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    * @return Checks if the BTLE is enabled
    */
-  @SimpleProperty(description = "Checks if BTLE is available and enabled", 
-                  category = PropertyCategory.BEHAVIOR,
-                  userVisible = true)
-  public boolean Enabled() {
+  @SimpleProperty(description = "Checks if BTLE is available and enabled",
+    category = PropertyCategory.BEHAVIOR,
+    userVisible = true)
+    public boolean Enabled() {
     return isEnabled;
   }
 
@@ -1211,7 +1212,7 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Returns a list of the Gatt services
    */
   @SimpleProperty(description = "Lists the BLTE GATT Services", category = PropertyCategory.BEHAVIOR)
-  public List<String> DeviceServices() { 
+  public List<String> DeviceServices() {
     List<String> listOfServices = new ArrayList<String>();
     int numServices;
     BluetoothGattService mService;
@@ -1220,19 +1221,19 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     numServices = mGattServices.size();
 
     // bail out if nothing found
-    if (numServices == 0) { 
+    if (numServices == 0) {
       listOfServices.add("No Services Found");
       LogMessage("Did not find any Services", "i");
-    } else { 
+    } else {
       LogMessage("Found " + numServices + " services", "i");
       for (int loop1 = 0; loop1 < numServices; loop1++) {
         mService = mGattServices.get(loop1);
-        if (mService != null) { 
+        if (mService != null) {
           listOfServices.add(mService.getUuid().toString());
         }
       }
     }
-  
+
     return listOfServices;
   }
 
@@ -1240,16 +1241,16 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows to access of scan records found in the Scan
    */
   @SimpleProperty(description = "Lists the scan record of all BLTE devices find in scan", category = PropertyCategory.BEHAVIOR)
-  public List<String> ScanRecords() { 
+  public List<String> ScanRecords() {
     List<String> listOfScanRecords = new ArrayList<String>();
     BluetoothDevice nextDevice;
 
     if (mScannedDevices.size() == 0) {
       LogMessage("Did not find any devices in scan", "i");
-    } else { 
+    } else {
       for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
         nextDevice = mScannedDevices.get(loop1).getDevice();
-        if (nextDevice != null) { 
+        if (nextDevice != null) {
           listOfScanRecords.add(mScannedDevices.get(loop1).getScanRecord());
           LogMessage("Adding scan record to list: " + mScannedDevices.get(loop1).getScanRecord(), "i");
         }
@@ -1263,16 +1264,16 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows to access of RSSI found in scan
    */
   @SimpleProperty(description = "Lists the RSSI of all BLTE devices find in scan", category = PropertyCategory.BEHAVIOR)
-  public List<Integer> ScanRSSI() { 
+  public List<Integer> ScanRSSI() {
     List<Integer> listOfRSSI = new ArrayList<Integer>();
     BluetoothDevice nextDevice;
 
     if (mScannedDevices.size() == 0) {
       LogMessage("Did not find any devices in scan", "i");
-    } else { 
+    } else {
       for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
         nextDevice = mScannedDevices.get(loop1).getDevice();
-        if (nextDevice != null) { 
+        if (nextDevice != null) {
           listOfRSSI.add(mScannedDevices.get(loop1).getRssi());
           LogMessage("Adding scan RSSI to list: " + mScannedDevices.get(loop1).getRssi(), "i");
         }
@@ -1286,32 +1287,21 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    * Allows to access a list of Devices found in the Scan
    */
   @SimpleProperty(description = "Lists the BLTE devices", category = PropertyCategory.BEHAVIOR)
-  public List<String> AddressesAndNames() { 
+  public YailList AddressesAndNames() {
     List<String> listOfBTLEDevices = new ArrayList<String>();
     String deviceName;
     BluetoothDevice nextDevice;
     int foundCount = 0;
 
-    if (mScannedDevices.size() == 0) {
-      listOfBTLEDevices.add("No devices found");
-      LogMessage("Did not find any devices to connect", "i");
-    } else { 
-      LogMessage("Finding names in " + mScannedDevices.size() + " devices", "i");
-      for (int loop1 = 0; loop1 < mScannedDevices.size(); loop1++) {
-        nextDevice = mScannedDevices.get(loop1).getDevice();
-        if (nextDevice != null) { 
-          //deviceName = GetDeviceNameAndAddress(nextDevice) + mScannedDevices.get(loop1).getScanRecord();
-          deviceName = GetDeviceNameAndAddress(nextDevice);
-          listOfBTLEDevices.add(deviceName);
-          foundCount++;
-        }
-      }
-      if (foundCount == 0) {
-        listOfBTLEDevices.add("All devices are null");
+    LogMessage("Finding names in " + mScannedDevices.size() + " devices", "i");
+    for (int i = 0; i < mScannedDevices.size(); i++) {
+      nextDevice = mScannedDevices.get(i).getDevice();
+      if (nextDevice != null) {
+        deviceName = GetDeviceNameAndAddress(nextDevice);
+        listOfBTLEDevices.add(deviceName);
       }
     }
-
-    return listOfBTLEDevices;
+    return YailList.makeList(listOfBTLEDevices);
   }
 
   /**  URGENT -- missing all the onResume() onPause() onStop() methods to cleanup
@@ -1320,24 +1310,19 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
    *
    */
 
-  // 
+  //
   public void onResume() {
     LogMessage("Resuming the WICED Sense component", "i");
   }
 
   public void onPause() {
     LogMessage("Calling onPause()", "i");
-    //Log.d(TAG, "OnPause method started.");
-    //if (nfcAdapter != null) {
-    //  GingerbreadUtil.disableNFCAdapter(activity, nfcAdapter);
-    //}
-    //nfcAdapter.disableForegroundDispatch(activity);
   }
 
   @Override
   public void onDelete() {
     LogMessage("Deleting the WICED Sense component", "i");
-    if (mBluetoothGatt != null) { 
+    if (mBluetoothGatt != null) {
       mBluetoothGatt.close();
     }
   }
@@ -1347,9 +1332,9 @@ implements Component, OnStopListener, OnResumeListener, OnPauseListener, Deletea
     LogMessage("Calling onStop()", "i");
 
     // Force a disconnect on Stop
-    if (mRunInBackground) { 
+    if (mRunInBackground) {
       LogMessage("Continuing to run in the background", "i");
-    } else { 
+    } else {
       LogMessage("Auto-disconnecting device from onStop()", "i");
       Disconnect();
     }

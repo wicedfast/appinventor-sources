@@ -1,9 +1,4 @@
-#Welcome to MIT App Inventor - Extended to Support BTLE and WICED Fast App Inventor
-
-Moves the AI2 source to Android 4.3.1
-Adds the Component WICEDSense.java
-Adds the Component BluetoothLE.java
-
+#Welcome to MIT App Inventor
 
 ##Introduction
 
