@@ -99,6 +99,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent
 
   // holds current connection state
   private int mConnectionState = STATE_DISCONNECTED;
+  private int mReqConnectionState = STATE_DISCONNECTED;
 
   // Holds specific WICED services
   private boolean validWICEDDevice = false;
@@ -137,6 +138,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent
   private static final int STATE_DISCONNECTED = 0;
   private static final int STATE_NEED_SERVICES = 1;
   private static final int STATE_CONNECTED = 2;
+  private static final int STATE_WAIT_TO_CONNECT = 3;
+  private static final int STATE_FORCE_DISCONNECT = 4;
 
   /** Descriptor used to enable/disable notifications/indications */
   private static final UUID CLIENT_CONFIG_UUID = UUID
@@ -242,6 +245,8 @@ public final class WICEDSense extends AndroidNonvisibleComponent
   private void CleanupBTLEState() {
 
     mConnectionState = STATE_DISCONNECTED;
+    mReqConnectionState = STATE_DISCONNECTED;
+    
 
     // null out services
     mSensorService = null;
@@ -401,31 +406,47 @@ public final class WICEDSense extends AndroidNonvisibleComponent
       public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
         LogMessage("onConnectionStateChange callback with status = " + status, "i");
 
-        //String intentAction;
+        // New connection
         if (newState == BluetoothProfile.STATE_CONNECTED) {
-          mConnectionState = STATE_NEED_SERVICES;
 
-          // Trigger device discovery
-          LogMessage("Connected to BLTE device, starting service discovery", "i");
-          boolean success = mBluetoothGatt.discoverServices();
-          if (!success) {
-            LogMessage("Cannot start service discovery for some reason", "e");
+          // first connect, get services
+          if (mConnectionState == STATE_DISCONNECTED) { 
+            mConnectionState = STATE_NEED_SERVICES;
+  
+            // Trigger device discovery
+            LogMessage("Connected to BLTE device, starting service discovery", "i");
+            boolean success = mBluetoothGatt.discoverServices();
+            if (!success) {
+              LogMessage("Cannot start service discovery for some reason", "e");
+            }
+          // Reconnected, move to connected state
+          } else if (mConnectionState == STATE_WAIT_TO_CONNECT) { 
+            mConnectionState = STATE_CONNECTED;
           }
           // Finalizing the disconnect profile
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-          mConnectionState = STATE_DISCONNECTED;
 
-          // close out connection
-//             mBluetoothGatt.close();
+          // Only if force, do we disconnect, otherwise wait for auto-connect
+          if (mReqConnectionState == STATE_FORCE_DISCONNECT) { 
+            mConnectionState = STATE_DISCONNECTED;
+            mReqConnectionState = STATE_DISCONNECTED;
+  
+            // close out connection
+            //mBluetoothGatt.close();
+  
+            // null out services
+            mSensorService = null;
+            mSensorNotification = null;
+            mBatteryService = null;
+            mBatteryCharacteristic = null;
+            mGattServices.clear();
+  
+            LogMessage("Disconnected from BLTE device", "i");
+          } else  {
+            mConnectionState = STATE_WAIT_TO_CONNECT;
+            LogMessage("Waiting to reconnect to BLTE device", "i");
+          }
 
-          // null out services
-          mSensorService = null;
-          mSensorNotification = null;
-          mBatteryService = null;
-          mBatteryCharacteristic = null;
-          mGattServices.clear();
-
-          LogMessage("Disconnected from BLTE device", "i");
         }
       }
 
@@ -438,7 +459,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent
         LogMessage("Updating RSSI from remove device = " + rssi + " dBm", "i");
 
         // update RSSI
-        //RSSIUpdated();
+        RSSIUpdated(rssi);
       }
 
       @Override
@@ -494,7 +515,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent
           setSensorState();
 
           // Triggers callback for connected device
-          //Connected();
+          if (validWICEDDevice) { 
+            Connected();
+          } else { 
+            Error("Connected, but not a valid WICED device");
+          }
         } else {
           LogMessage("onServicesDiscovered received but failed", "e");
         }
@@ -548,50 +573,107 @@ public final class WICEDSense extends AndroidNonvisibleComponent
           byte[] value = characteristic.getValue();
           int bitMask = value[0];
           int index = 1;
+          boolean envUpdatedFlag = false;
+          boolean sensorsUpdatedFlag = false;
 
           // Update timestamp
           currentTime = System.nanoTime();
 
-          if ((bitMask & 0x1)>0) {
-            mXAccel = (value[index+1] << 8) + (value[  index] & 0xFF);
-            mYAccel = (value[index+3] << 8) + (value[index+2] & 0xFF);
-            mZAccel = (value[index+5] << 8) + (value[index+4] & 0xFF);
-            index = index + 6;
-          }
-          if ((bitMask & 0x2)>0) {
-            mXGyro = (value[index+1] << 8) + (value[  index] & 0xFF);
-            mYGyro = (value[index+3] << 8) + (value[index+2] & 0xFF);
-            mZGyro = (value[index+5] << 8) + (value[index+4] & 0xFF);
-            mXGyro = mXGyro / (float)100.0;
-            mYGyro = mYGyro / (float)100.0;
-            mZGyro = mZGyro / (float)100.0;
-            index = index + 6;
-          }
-          if ((bitMask & 0x4)>0) {
-            mHumidity =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
-            mHumidity = mHumidity / (float)10.0;
-            index = index + 2;
-          }
-          if ((bitMask & 0x8)>0) {
-            mXMagnetometer = (value[index+1] << 8) + (value[  index] & 0xFF);
-            mYMagnetometer = (value[index+3] << 8) + (value[index+2] & 0xFF);
-            mZMagnetometer = (value[index+5] << 8) + (value[index+4] & 0xFF);
-            index = index + 6;
-          }
-          if ((bitMask & 0x10)>0) {
-            mPressure =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
-            mPressure = mPressure / (float)10.0;
-            index = index + 2;
-          }
-          if ((bitMask & 0x20)>0) {
-            mTemperature =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
-            mTemperature = mTemperature / (float)10.0;
-            index = index + 2;
-            tempCurrentTime = System.nanoTime();
-          }
+          // --------------------------------------------
+          //  Handles special build for accel profile
+          // --------------------------------------------
+          // 10 bytes of unsigned acceleration
+          // 6 bytes of Gyro [0,255] = 16g
+          // 1 byte of peak acceleration = 
+          // 1 byte of sequence
+          if (bitMask == 0xFF) { 
+            List<Float> accelProfile = new ArrayList<Float>();
+            float nextValue;
+            int unsignedByte;
+      
+            // Load up 10 unsigned bytes accelerometer data
+            for (int i = 0; i < 10; i++) {
+              unsignedByte = value[i+1] & 0xff;
+              nextValue = (float)unsignedByte * (float)(16.0 / 255.0);
+              accelProfile.add(nextValue);
+            }
 
-          LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
-          //SensorsUpdated();
+            // Load up 6 signed bytes gyro data
+            for (int i = 0; i < 6; i++) {
+              nextValue = (float)value[i+11] * (float)(1600.0 / 127.0);
+              accelProfile.add(nextValue);
+            }
+  
+            // load up peak accel
+            unsignedByte = value[17] & 0xff;
+            nextValue = (float)unsignedByte * (float)(16.0 / 255.0);
+            accelProfile.add(nextValue);
+
+            // load up sequence ID
+            unsignedByte = value[18] & 0xff;
+            nextValue = (float)unsignedByte;
+            accelProfile.add(nextValue);
+
+            // fire the event with new data
+            AccelProfileUpdated(YailList.makeList(accelProfile));
+
+          // ------------------------------------------------------
+          //  Handles WICED Sense Component
+          // ------------------------------------------------------
+          } else {
+
+            if ((bitMask & 0x1)>0) {
+              sensorsUpdatedFlag = true;
+              mXAccel = (value[index+1] << 8) + (value[  index] & 0xFF);
+              mYAccel = (value[index+3] << 8) + (value[index+2] & 0xFF);
+              mZAccel = (value[index+5] << 8) + (value[index+4] & 0xFF);
+              index = index + 6;
+            }
+            if ((bitMask & 0x2)>0) {
+              sensorsUpdatedFlag = true;
+              mXGyro = (value[index+1] << 8) + (value[  index] & 0xFF);
+              mYGyro = (value[index+3] << 8) + (value[index+2] & 0xFF);
+              mZGyro = (value[index+5] << 8) + (value[index+4] & 0xFF);
+              mXGyro = mXGyro / (float)100.0;
+              mYGyro = mYGyro / (float)100.0;
+              mZGyro = mZGyro / (float)100.0;
+              index = index + 6;
+            }
+            if ((bitMask & 0x4)>0) {
+              envUpdatedFlag = true;
+              mHumidity =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+              mHumidity = mHumidity / (float)10.0;
+              index = index + 2;
+            }
+            if ((bitMask & 0x8)>0) {
+              sensorsUpdatedFlag = true;
+              mXMagnetometer = (value[index+1] << 8) + (value[  index] & 0xFF);
+              mYMagnetometer = (value[index+3] << 8) + (value[index+2] & 0xFF);
+              mZMagnetometer = (value[index+5] << 8) + (value[index+4] & 0xFF);
+              index = index + 6;
+            }
+            if ((bitMask & 0x10)>0) {
+              envUpdatedFlag = true;
+              mPressure =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+              mPressure = mPressure / (float)10.0;
+              index = index + 2;
+            }
+            if ((bitMask & 0x20)>0) {
+              envUpdatedFlag = true;
+              mTemperature =  ((value[index+1] & 0xFF) << 8) + (value[index] & 0xFF);
+              mTemperature = mTemperature / (float)10.0;
+              index = index + 2;
+              tempCurrentTime = System.nanoTime();
+            }
+  
+            LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
+          }
+          // fire the response
+          if (sensorsUpdatedFlag) { 
+            SensorsUpdated();
+          } else if (envUpdatedFlag) { 
+            EnvSensorsUpdated();
+          }
         }
       }
     };
@@ -612,11 +694,15 @@ public final class WICEDSense extends AndroidNonvisibleComponent
   /**
    * Callback for an Error Event
    */
-//  @SimpleEvent(description = "Event when there is an Error.")
-//  public void Error() {
-//    LogMessage("Firing the Error()", "e");
-//    EventDispatcher.dispatchEvent(this, "Error");
-//  }
+  @SimpleEvent(description = "Event when there is an Error.")
+  public void Error(final String message) {
+    LogMessage("Firing the Error()", "e");
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "Error", message);
+        }
+      });
+  }
 
   /**
    * Callback for Found Device Event
@@ -635,15 +721,14 @@ public final class WICEDSense extends AndroidNonvisibleComponent
    * Callback for RSSI data
    */
   @SimpleEvent(description = "RSSI Read Event.")
-  public void RSSIUpdated() {
+  public void RSSIUpdated(final int rssi) {
     boolean success;
     LogMessage("Firing the RSSIUpdated() event", "i");
-    success = EventDispatcher.dispatchEvent(this, "RSSIUpdated");
-    if (!success) {
-      LogMessage("Failed to dispatch RSSIUpdated() event", "e");
-    } else {
-      LogMessage("Success in dispatching RSSIUpdated() event", "i");
-    }
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "RSSIUpdated", rssi);
+        }
+      });
   }
 
   /**
@@ -651,7 +736,11 @@ public final class WICEDSense extends AndroidNonvisibleComponent
    */
   @SimpleEvent(description = "BTLE Connection Event.")
   public void Connected() {
-    EventDispatcher.dispatchEvent(this, "Connected");
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "Connected");
+        }
+      });
   }
 
   /**
@@ -659,7 +748,36 @@ public final class WICEDSense extends AndroidNonvisibleComponent
    */
   @SimpleEvent(description = "Sensor data updated.")
   public void SensorsUpdated() {
-    EventDispatcher.dispatchEvent(this, "SensorsUpdated");
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "SensorsUpdated");
+        }
+      });
+  }
+
+  /**
+   * Callback events for Acceleration
+   */
+  @SimpleEvent(description = "Acceleration Profile updated.")
+  public void AccelProfileUpdated(final YailList returnList) {
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "AccelProfileUpdated", returnList);
+        }
+      });
+  }
+
+
+  /**
+   * Callback events for Environment Sensor Update
+   */
+  @SimpleEvent(description = "Environment Sensor data updated.")
+  public void EnvSensorsUpdated() {
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "EnvSensorsUpdated");
+        }
+      });
   }
 
   /**
@@ -826,6 +944,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent
     String functionName = "Disconnect";
 
     if (mConnectionState == STATE_CONNECTED || mConnectionState == STATE_NEED_SERVICES) {
+      mReqConnectionState = STATE_FORCE_DISCONNECT;
       mBluetoothGatt.disconnect();
       LogMessage("Disconnecting from device", "i");
     } else {
@@ -881,7 +1000,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent
 
       // Found the best device to connect
       if (foundDevice) {
-        mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+        // Boolean is for "autoconnect"
+        //mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+        mBluetoothGatt = mDevice.connectGatt(activity, true, mGattCallback);
         LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
       } else {
         LogMessage("No device found to connect", "e");
@@ -919,7 +1040,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent
 
       // Fire off the callback
       if (foundDevice) {
-        mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+        // boolean is for auto-connect
+        //mBluetoothGatt = mDevice.connectGatt(activity, false, mGattCallback);
+        mBluetoothGatt = mDevice.connectGatt(activity, true, mGattCallback);
         LogMessage("Connecting device " + GetDeviceNameAndAddress(mDevice), "i");
       } else {
         LogMessage("No device found to connect", "e");
