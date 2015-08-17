@@ -422,6 +422,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent
           // Reconnected, move to connected state
           } else if (mConnectionState == STATE_WAIT_TO_CONNECT) { 
             mConnectionState = STATE_CONNECTED;
+            Reconnected();
           }
           // Finalizing the disconnect profile
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -739,6 +740,18 @@ public final class WICEDSense extends AndroidNonvisibleComponent
     androidUIHandler.post(new Runnable() {
         public void run() {
           EventDispatcher.dispatchEvent(WICEDSense.this, "Connected");
+        }
+      });
+  }
+
+  /**
+   * Callback events for device connection
+   */
+  @SimpleEvent(description = "BTLE Re-connection Event.")
+  public void Reconnected() {
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "Reconnected");
         }
       });
   }
