@@ -229,6 +229,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent
       String errorLevel = "e";
       String warningLevel = "w";
 
+      // send message to UI
+      Error(message);
+
       // push to appropriate logging
       if (level.equals(errorLevel)) {
         Log.e(LOG_TAG, message);
@@ -447,6 +450,9 @@ public final class WICEDSense extends AndroidNonvisibleComponent
             mConnectionState = STATE_WAIT_TO_CONNECT;
             LogMessage("Waiting to reconnect to BLTE device", "i");
           }
+
+          // Fire disconnect event
+          Disconnected();
 
         }
       }
@@ -668,12 +674,12 @@ public final class WICEDSense extends AndroidNonvisibleComponent
             }
   
             LogMessage("Reading back sensor data with type " + bitMask + " packet", "i");
-          }
-          // fire the response
-          if (sensorsUpdatedFlag) { 
-            SensorsUpdated();
-          } else if (envUpdatedFlag) { 
-            EnvSensorsUpdated();
+            // fire the response
+            if (sensorsUpdatedFlag) { 
+              SensorsUpdated();
+            } else if (envUpdatedFlag) { 
+              EnvSensorsUpdated();
+            }
           }
         }
       }
@@ -697,7 +703,7 @@ public final class WICEDSense extends AndroidNonvisibleComponent
    */
   @SimpleEvent(description = "Event when there is an Error.")
   public void Error(final String message) {
-    LogMessage("Firing the Error()", "e");
+//    LogMessage("Firing the Error()", "e");
     androidUIHandler.post(new Runnable() {
         public void run() {
           EventDispatcher.dispatchEvent(WICEDSense.this, "Error", message);
@@ -728,6 +734,18 @@ public final class WICEDSense extends AndroidNonvisibleComponent
     androidUIHandler.post(new Runnable() {
         public void run() {
           EventDispatcher.dispatchEvent(WICEDSense.this, "RSSIUpdated", rssi);
+        }
+      });
+  }
+
+  /**
+   * Callback events for device connection
+   */
+  @SimpleEvent(description = "BTLE Disconnection Event.")
+  public void Disconnected() {
+    androidUIHandler.post(new Runnable() {
+        public void run() {
+          EventDispatcher.dispatchEvent(WICEDSense.this, "Disconnected");
         }
       });
   }
